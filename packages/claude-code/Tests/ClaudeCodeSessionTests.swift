@@ -5,6 +5,8 @@ import Testing
 /// Records calls and lets the test drive the stdout stream line by line.
 private actor FakeClaudeProcess: ClaudeCodeProcessing {
     private(set) var startResumes: [String?] = []
+    private(set) var startArguments: [[String]] = []
+    var standardError = ""
     private(set) var sentMessages: [String] = []
     private(set) var interruptCount = 0
     private(set) var terminateCount = 0
@@ -12,6 +14,7 @@ private actor FakeClaudeProcess: ClaudeCodeProcessing {
 
     func start(_ configuration: ClaudeCodeLaunchConfiguration, resume sessionID: String?) async throws -> AsyncStream<String> {
         startResumes.append(sessionID)
+        startArguments.append(configuration.arguments(resume: sessionID))
         let (stream, continuation) = AsyncStream.makeStream(of: String.self)
         stdout = continuation
         return stream
@@ -27,6 +30,14 @@ private actor FakeClaudeProcess: ClaudeCodeProcessing {
 
     func terminate() async {
         terminateCount += 1
+    }
+
+    func standardErrorTail() async -> String {
+        standardError
+    }
+
+    func setStandardError(_ text: String) {
+        standardError = text
     }
 
     func emit(_ line: String) {
@@ -57,7 +68,12 @@ private func makeSession(
     approvalTimeout: Duration = .seconds(45),
     directoryExists: Bool = true
 ) -> ClaudeCodeSession {
-    ClaudeCodeSession(configuration: configuration, process: process, approvalTimeout: approvalTimeout, directoryExists: { _ in directoryExists })
+    ClaudeCodeSession(
+        configuration: configuration,
+        process: process,
+        approvalTimeout: approvalTimeout,
+        directoryExists: { _ in directoryExists }
+    )
 }
 
 /// Waits for a state that is reached without emitting an event (no fixed sleeps).
@@ -335,4 +351,18 @@ func `approval ids from two sessions never collide and do not resolve each other
     await first.resolveApproval(id: firstID, allow: false)
     #expect(await secondDecision == .deny(reason: ClaudeCodeSession.deniedByUserReason))
     #expect(await firstDecision == .deny(reason: ClaudeCodeSession.deniedByUserReason))
+}
+
+@Test(.timeLimit(.minutes(1)))
+func `abnormal exit includes the tail of standard error`() async throws {
+    let process = FakeClaudeProcess()
+    let session = makeSession(process)
+    var events = await session.events().makeAsyncIterator()
+    try await session.submit("作業して")
+    await process.setStandardError("  Invalid API key · Please run /login\n")
+    await process.endStdout()
+
+    let finished = await nextEvent(&events, where: isFinished)
+    #expect(finished == .finished(result: "プロセスが終了しました\nInvalid API key · Please run /login", isError: true, sessionID: nil))
+    #expect(await session.state == .idle)
 }

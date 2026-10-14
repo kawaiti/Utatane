@@ -34,11 +34,44 @@ private final class LineSplitter: @unchecked Sendable {
     }
 }
 
+/// Keeps the last `limit` bytes written to standard error. Appended to from one readability handler.
+private final class StandardErrorTail: @unchecked Sendable {
+    private let lock = NSLock()
+    private let limit: Int
+    private var buffer = Data()
+    /// Signalled once standard error reaches EOF.
+    let finished = DispatchSemaphore(value: 0)
+
+    init(limit: Int) {
+        self.limit = limit
+    }
+
+    func append(_ data: Data) {
+        lock.withLock {
+            buffer.append(data)
+            if buffer.count > limit {
+                buffer.removeFirst(buffer.count - limit)
+            }
+        }
+    }
+
+    var text: String {
+        let data = lock.withLock { buffer }
+        // The cut may land inside a UTF-8 sequence; drop the resulting replacement characters at the start.
+        return String(String(decoding: data, as: UTF8.self).drop { $0 == "\u{FFFD}" })
+    }
+}
+
 /// Runs one resident `claude` child process via `Foundation.Process`.
 ///
 /// Calling `start` while a process is already running terminates the old one first (its stream ends),
 /// then launches the new one.
 public final class ClaudeCodeProcess: ClaudeCodeProcessing, @unchecked Sendable {
+    /// Bytes of standard error kept for `standardErrorTail()`.
+    public static let standardErrorLimit = 4096
+    /// How long the end of stdout waits for standard error to reach EOF, so the tail is complete.
+    private static let standardErrorDrainTimeout: DispatchTimeInterval = .seconds(1)
+
     private struct Running {
         let process: Process
         let stdin: FileHandle
@@ -47,6 +80,8 @@ public final class ClaudeCodeProcess: ClaudeCodeProcessing, @unchecked Sendable 
 
     private let lock = NSLock()
     private var running: Running?
+    /// Standard error of the most recently started process; kept after it exits.
+    private var standardError: StandardErrorTail?
 
     public init() {
         // A write to a closed pipe must surface as a thrown error, not kill the app.
@@ -60,11 +95,28 @@ public final class ClaudeCodeProcess: ClaudeCodeProcessing, @unchecked Sendable 
         process.executableURL = configuration.executable
         process.arguments = configuration.arguments(resume: sessionID)
         process.currentDirectoryURL = configuration.workingDirectory
+        process.environment = ClaudeCodeLaunchEnvironment.environment(
+            executable: configuration.executable,
+            inheriting: ProcessInfo.processInfo.environment
+        )
         let stdinPipe = Pipe()
         let stdoutPipe = Pipe()
+        let stderrPipe = Pipe()
         process.standardInput = stdinPipe
         process.standardOutput = stdoutPipe
-        process.standardError = FileHandle.nullDevice
+        process.standardError = stderrPipe
+
+        let tail = StandardErrorTail(limit: Self.standardErrorLimit)
+        let stderrHandle = stderrPipe.fileHandleForReading
+        stderrHandle.readabilityHandler = { handle in
+            let data = handle.availableData
+            if data.isEmpty {
+                handle.readabilityHandler = nil
+                tail.finished.signal()
+                return
+            }
+            tail.append(data)
+        }
 
         let (stream, continuation) = AsyncStream.makeStream(of: String.self)
         let splitter = LineSplitter()
@@ -73,6 +125,8 @@ public final class ClaudeCodeProcess: ClaudeCodeProcessing, @unchecked Sendable 
             let data = handle.availableData
             if data.isEmpty {
                 handle.readabilityHandler = nil
+                // Let standard error catch up, so whoever sees the stream end can read the complete tail.
+                _ = tail.finished.wait(timeout: .now() + Self.standardErrorDrainTimeout)
                 if let last = splitter.flush() {
                     continuation.yield(last)
                 }
@@ -88,16 +142,25 @@ public final class ClaudeCodeProcess: ClaudeCodeProcessing, @unchecked Sendable 
             try process.run()
         } catch {
             stdoutHandle.readabilityHandler = nil
+            stderrHandle.readabilityHandler = nil
             continuation.finish()
             throw error
         }
         // The parent's copies of the child-side ends must be closed so EOF can be observed.
         try? stdinPipe.fileHandleForReading.close()
         try? stdoutPipe.fileHandleForWriting.close()
+        try? stderrPipe.fileHandleForWriting.close()
 
         let current = Running(process: process, stdin: stdinPipe.fileHandleForWriting, continuation: continuation)
-        lock.withLock { running = current }
+        lock.withLock {
+            running = current
+            standardError = tail
+        }
         return stream
+    }
+
+    public func standardErrorTail() async -> String {
+        lock.withLock { standardError }?.text ?? ""
     }
 
     public func send(userMessage: String) async throws {

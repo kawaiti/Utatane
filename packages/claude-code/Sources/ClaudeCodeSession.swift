@@ -7,6 +7,8 @@ public protocol ClaudeCodeProcessing: Sendable {
     func send(userMessage: String) async throws
     func interrupt() async
     func terminate() async
+    /// The last few kilobytes the process wrote to standard error, for explaining an abnormal exit.
+    func standardErrorTail() async -> String
 }
 
 /// Identifies one approval request, so a decision can only resolve the request it was made for.
@@ -178,7 +180,7 @@ public actor ClaudeCodeSession {
                 apply(event)
             }
         }
-        processEnded(generation: generation)
+        await processEnded(generation: generation)
     }
 
     /// Updates state before yielding, so a consumer seeing the event also sees its effect.
@@ -200,14 +202,22 @@ public actor ClaudeCodeSession {
         eventContinuation.yield(event)
     }
 
-    private func processEnded(generation: UInt64) {
+    private func processEnded(generation: UInt64) async {
         guard generation == processGeneration else { return }
         isProcessActive = false
         if let pendingApproval {
             completeApproval(id: pendingApproval.id, with: .deny(reason: Self.processEndedMessage))
         }
         guard state != .idle else { return }
+        // The state stays `.running` while standard error is read, so a reentrant submit is refused as busy.
+        let standardError = await process.standardErrorTail().trimmingCharacters(in: .whitespacesAndNewlines)
+        guard generation == processGeneration else { return }
+        if let pendingApproval {
+            completeApproval(id: pendingApproval.id, with: .deny(reason: Self.processEndedMessage))
+        }
+        guard state != .idle else { return }
         state = .idle
-        eventContinuation.yield(.finished(result: Self.processEndedMessage, isError: true, sessionID: sessionID))
+        let result = standardError.isEmpty ? Self.processEndedMessage : Self.processEndedMessage + "\n" + standardError
+        eventContinuation.yield(.finished(result: result, isError: true, sessionID: sessionID))
     }
 }

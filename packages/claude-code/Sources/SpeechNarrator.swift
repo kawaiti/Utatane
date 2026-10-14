@@ -19,7 +19,10 @@ public enum SpeechNarrator {
             let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
             if isError {
                 if trimmed.isEmpty { return "うまくいきませんでした" }
-                return "うまくいきませんでした: " + String(trimmed.prefix(errorLimit))
+                if let message = ClaudeCodeFailureText.spokenMessage(for: trimmed) { return message }
+                // Only the first line is spoken; the rest (such as a standard error tail) stays in the transcript.
+                let firstLine = trimmed.split(whereSeparator: \.isNewline).first.map(String.init) ?? trimmed
+                return "うまくいきませんでした: " + String(firstLine.prefix(errorLimit))
             }
             if trimmed.isEmpty { return "終わりました" }
             return trimmed.count > resultLimit ? String(trimmed.prefix(resultLimit)) + "…" : trimmed
