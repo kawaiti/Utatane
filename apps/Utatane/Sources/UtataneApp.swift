@@ -32,6 +32,7 @@ extension Notification.Name {
     static let showUtataneLayoutPresets = Notification.Name("dev.utatane.showLayoutPresets")
     static let showUtataneSHIORIDiagnostics = Notification.Name("dev.utatane.showSHIORIDiagnostics")
     static let showUtataneConfigurationHelp = Notification.Name("dev.utatane.showConfigurationHelp")
+    static let showUtataneClaudeCode = Notification.Name("dev.utatane.showClaudeCode")
 }
 
 @main
@@ -157,7 +158,8 @@ struct UtataneApp: App {
                 presentationGeometry: presentationGeometry,
                 networkSettings: networkSettings,
                 appUpdater: updaterController.updater,
-                applicationDelegate: applicationDelegate
+                applicationDelegate: applicationDelegate,
+                claudeCodeSettings: claudeCodeSettings
             )
             .modifier(ModuleSetupOpening())
         }
@@ -222,6 +224,9 @@ struct UtataneApp: App {
                 }
                 Button("SHIORI読み込み診断…") {
                     NotificationCenter.default.post(name: .showUtataneSHIORIDiagnostics, object: nil)
+                }
+                Button("Claude Code…") {
+                    NotificationCenter.default.post(name: .showUtataneClaudeCode, object: nil)
                 }
             }
             ModuleCatalogCommands()
@@ -317,6 +322,7 @@ private struct UtataneRootView: View {
     @ObservedObject var networkSettings: UtataneSettingsStore
     let appUpdater: SPUUpdater
     let applicationDelegate: UtataneApplicationDelegate
+    let claudeCodeSettings: ClaudeCodeSettings
 
     @Environment(\.openSettings) private var openSettings
 
@@ -400,6 +406,7 @@ private struct UtataneRootView: View {
     @State private var systemInputMonitor = SystemInputEventMonitor()
     @State private var systemLoadDetector = SystemLoadTransitionDetector()
     @State private var realtimeVoiceWindowController: RealtimeVoiceWindowController?
+    @State private var claudeCodeController: ClaudeCodeController?
     @State private var speechHistoryPresenter: SpeechHistoryPresenter?
     @State private var speechSynthesizer = SpeechSynthesisRouter()
     @State private var localSpeechRecognizer = MacOSSpeechRecognizer()
@@ -572,6 +579,14 @@ private struct UtataneRootView: View {
                 broadcastEvent(.shiori(id: id, references: references))
             }
             systemInputMonitor.start()
+            if claudeCodeController == nil {
+                let controller = ClaudeCodeController(settings: claudeCodeSettings) { text in
+                    speakClaudeCode(text)
+                }
+                controller.onOpenSettings = { showSettingsPane(.claudeCode) }
+                controller.startIfEnabled()
+                claudeCodeController = controller
+            }
             networkStatusMonitor.onChange = { snapshot in
                 broadcastEvent(.shiori(id: "OnNetworkStatusChange", references: snapshot.references))
             }
@@ -7826,9 +7841,20 @@ private struct UtataneRootView: View {
                 return SSTPResponse(statusCode: 503, reason: "Service Unavailable")
             }
             return SSTPResponse(statusCode: 204, reason: "No Content")
+        case "ApproveTool":
+            guard let claudeCodeController else {
+                return jsonSSTPResponse(["allow": false, "reason": "Claude Codeの準備ができていないため拒否しました"])
+            }
+            return await claudeCodeController.handleApproveTool(payload: arguments)
         default:
             return SSTPResponse(statusCode: 400, reason: "Unknown Command")
         }
+    }
+
+    private func speakClaudeCode(_ text: String) {
+        guard !isTransitioningGhost, currentGhost != nil, let balloon else { return }
+        let escaped = AIPersonalityEngine.escape(text.split(whereSeparator: \.isNewline).joined(separator: " "))
+        scriptPlayer.play(SakuraScript(rawValue: "\\0\(escaped)\\e"), balloon: balloon)
     }
 
     private func activeGhostDescriptions() -> [[String: Any]] {

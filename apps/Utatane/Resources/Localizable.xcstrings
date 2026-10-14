@@ -1190,6 +1190,35 @@
         }
       }
     },
+    "Claude Codeへの指示" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Instruction for Claude Code"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Claude Code에 대한 지시"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "给 Claude Code 的指示"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "給 Claude Code 的指示"
+          }
+        }
+      }
+    },
     "CoeFont Cloud" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -9281,6 +9310,35 @@
         }
       }
     },
+    "中断" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Interrupt"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "중단"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中断"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "中斷"
+          }
+        }
+      }
+    },
     "中止" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -10760,6 +10818,35 @@
         }
       }
     },
+    "危険な操作のため、声では許可できません。内容を確認して許可ボタンを押してください。" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "This is a dangerous operation and cannot be allowed by voice. Review it and press Allow."
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "위험한 작업이므로 음성으로는 허가할 수 없습니다. 내용을 확인하고 허가 버튼을 누르세요."
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "这是危险操作，无法通过语音许可。请确认内容后按“许可”按钮。"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "這是危險操作，無法透過語音許可。請確認內容後按「許可」按鈕。"
+          }
+        }
+      }
+    },
     "原作・配布元" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -11481,6 +11568,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "執行"
+          }
+        }
+      }
+    },
+    "実行の許可を求めています" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Requesting permission to run"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "실행 허가를 요청하고 있습니다"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在请求执行许可"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在請求執行許可"
           }
         }
       }
@@ -12554,6 +12670,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "手動安裝模組後請重新啟動 Utatane。"
+          }
+        }
+      }
+    },
+    "拒否" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Deny"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "거부"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拒绝"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "拒絕"
           }
         }
       }
@@ -15197,6 +15342,35 @@
         }
       }
     },
+    "聞き取り中" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Listening"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "듣는 중"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在聆听"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在聆聽"
+          }
+        }
+      }
+    },
     "背景" : {
       "extractionState" : "manual",
       "localizations" : {
@@ -16092,6 +16266,35 @@
           "stringUnit" : {
             "state" : "translated",
             "value" : "設定頁面"
+          }
+        }
+      }
+    },
+    "許可" : {
+      "extractionState" : "manual",
+      "localizations" : {
+        "en" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "Allow"
+          }
+        },
+        "ko" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "허가"
+          }
+        },
+        "zh-Hans" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "许可"
+          }
+        },
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "許可"
           }
         }
       }

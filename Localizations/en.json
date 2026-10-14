@@ -636,5 +636,12 @@
   "既定のモデル" : "Default model",
   "権限モード" : "Permission Mode",
   "確認しながら" : "Ask Before Acting",
-  "編集を自動許可" : "Auto-approve Edits"
+  "編集を自動許可" : "Auto-approve Edits",
+  "聞き取り中" : "Listening",
+  "Claude Codeへの指示" : "Instruction for Claude Code",
+  "中断" : "Interrupt",
+  "実行の許可を求めています" : "Requesting permission to run",
+  "危険な操作のため、声では許可できません。内容を確認して許可ボタンを押してください。" : "This is a dangerous operation and cannot be allowed by voice. Review it and press Allow.",
+  "拒否" : "Deny",
+  "許可" : "Allow"
 }

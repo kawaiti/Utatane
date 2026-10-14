@@ -335,6 +335,7 @@ public final class MacOSSpeechRecognizer {
     private var audioEngine: AVAudioEngine?
     private var configuration: SpeechRecognitionConfiguration?
     private var finalizationTask: Task<Void, Never>?
+    private var pendingPartialText: String?
     private var generation = 0
     private var inputSuppressed = false
 
@@ -421,10 +422,21 @@ public final class MacOSSpeechRecognizer {
         }
     }
 
+    /// Stops listening after delivering a partial transcription that has not been finalized yet.
+    /// Used by push-to-talk: releasing the key must not drop what was just said.
+    public func finish() {
+        let pending = pendingPartialText
+        stop()
+        if let pending, !pending.isEmpty {
+            onFinalResult?(pending)
+        }
+    }
+
     public func stop() {
         generation += 1
         finalizationTask?.cancel()
         finalizationTask = nil
+        pendingPartialText = nil
         if let input = audioEngine?.inputNode {
             input.removeTap(onBus: 0)
         }
@@ -445,6 +457,7 @@ public final class MacOSSpeechRecognizer {
 
     private func scheduleFinalization(of text: String, after generation: Int) {
         guard !text.isEmpty else { return }
+        pendingPartialText = text
         finalizationTask?.cancel()
         finalizationTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(1))
@@ -456,6 +469,7 @@ public final class MacOSSpeechRecognizer {
 
     private func deliver(_ text: String, andRestartAfter generation: Int) async {
         guard !text.isEmpty, self.generation == generation else { return }
+        pendingPartialText = nil
         onFinalResult?(text)
         await restart(after: generation)
     }
