@@ -67,6 +67,9 @@ struct ClaudeCodeSettingsView: View {
                         Text("確認しながら").tag(ClaudeCodePermissionMode.default)
                         Text("編集を自動許可").tag(ClaudeCodePermissionMode.acceptEdits)
                     }
+                    Text("「編集を自動許可」では、ファイルの編集を確認せずに許可します。どちらのモードでも、ユーザー設定（~/.claude/settings.json）の許可ルールやフックで許可された操作は、確認なしで実行されることがあります。")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
                 }
             }
             .formStyle(.grouped)

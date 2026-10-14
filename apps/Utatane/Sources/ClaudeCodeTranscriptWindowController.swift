@@ -44,6 +44,7 @@ final class ClaudeCodeTranscriptModel: ObservableObject {
     var onSubmit: ((String) -> Void)?
     var onResolve: ((ClaudeCodeApprovalID, Bool) -> Void)?
     var onInterrupt: (() -> Void)?
+    var onNewSession: (() -> Void)?
 
     func append(_ kind: ClaudeCodeTranscriptEntry.Kind, _ text: String) {
         entries.append(ClaudeCodeTranscriptEntry(kind: kind, text: text))
@@ -137,6 +138,11 @@ private struct ClaudeCodeTranscriptView: View {
                     model.onInterrupt?()
                 }
                 .disabled(!model.isRunning)
+                Button("新しいセッション") {
+                    model.onNewSession?()
+                }
+                .disabled(model.isRunning)
+                .help(Text("この作業ディレクトリの会話を終え、次の指示から新しい会話を始めます"))
             }
             .padding(12)
         }

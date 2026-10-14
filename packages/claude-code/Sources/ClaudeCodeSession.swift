@@ -78,11 +78,14 @@ public actor ClaudeCodeSession {
     public init(
         configuration: ClaudeCodeLaunchConfiguration?,
         process: any ClaudeCodeProcessing,
+        initialSessionID: String? = nil,
         approvalTimeout: Duration = .seconds(45),
         directoryExists: @escaping @Sendable (URL) -> Bool = { FileManager.default.fileExists(atPath: $0.path) }
     ) {
         self.configuration = configuration
         self.process = process
+        // A stored id from an earlier run: the first launch resumes that conversation with `--resume`.
+        sessionID = initialSessionID
         self.approvalTimeout = approvalTimeout
         self.directoryExists = directoryExists
         // One unbounded stream created up front: events emitted before anyone subscribes are buffered, not lost.

@@ -52,3 +52,23 @@ private func withIsolatedDefaults(_ body: (UserDefaults) -> Void) {
         #expect(storage.permissionMode == .default)
     }
 }
+
+@Test func `session ids are stored per working directory`() {
+    withIsolatedDefaults { defaults in
+        let writer = ClaudeCodeSettingsStorage(defaults: defaults)
+        #expect(writer.sessionID(forWorkingDirectory: "/tmp/a") == nil)
+        writer.setSessionID("s-a", forWorkingDirectory: "/tmp/a")
+        writer.setSessionID("s-b", forWorkingDirectory: "/tmp/b")
+
+        let reader = ClaudeCodeSettingsStorage(defaults: defaults)
+        #expect(reader.sessionID(forWorkingDirectory: "/tmp/a") == "s-a")
+        #expect(reader.sessionID(forWorkingDirectory: "/tmp/b") == "s-b")
+        // The same directory spelled differently maps to the same entry.
+        #expect(reader.sessionID(forWorkingDirectory: "/tmp/a/") == "s-a")
+        #expect(reader.sessionID(forWorkingDirectory: "/tmp/b/../a") == "s-a")
+
+        reader.setSessionID(nil, forWorkingDirectory: "/tmp/a")
+        #expect(writer.sessionID(forWorkingDirectory: "/tmp/a") == nil)
+        #expect(writer.sessionID(forWorkingDirectory: "/tmp/b") == "s-b")
+    }
+}

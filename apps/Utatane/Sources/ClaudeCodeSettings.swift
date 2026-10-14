@@ -61,4 +61,13 @@ final class ClaudeCodeSettings: ObservableObject {
         permissionMode = storage.permissionMode
         hotkey = ClaudeCodeHotkey(rawValue: storage.hotkey) ?? .controlOptionSpace
     }
+
+    /// The last Claude Code session id used in `workingDirectory`; not published, it is not a user setting.
+    func sessionID(forWorkingDirectory workingDirectory: String) -> String? {
+        storage.sessionID(forWorkingDirectory: workingDirectory)
+    }
+
+    func setSessionID(_ sessionID: String?, forWorkingDirectory workingDirectory: String) {
+        storage.setSessionID(sessionID, forWorkingDirectory: workingDirectory)
+    }
 }

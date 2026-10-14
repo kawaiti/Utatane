@@ -13,6 +13,8 @@ public struct ClaudeCodeSettingsStorage {
         static let model = "claudeCode.model"
         static let permissionMode = "claudeCode.permissionMode"
         static let hotkey = "claudeCode.hotkey"
+        /// Dictionary from a standardized working directory path to the last Claude Code session id there.
+        static let sessionIDs = "claudeCode.sessionIDs"
     }
 
     private let defaults: UserDefaults
@@ -57,5 +59,25 @@ public struct ClaudeCodeSettingsStorage {
     public var hotkey: String {
         get { defaults.string(forKey: Key.hotkey) ?? Self.defaultHotkey }
         nonmutating set { defaults.set(newValue, forKey: Key.hotkey) }
+    }
+
+    /// The last session id used in `workingDirectory`, so a conversation can be resumed after a restart.
+    public func sessionID(forWorkingDirectory workingDirectory: String) -> String? {
+        storedSessionIDs[Self.directoryKey(workingDirectory)]
+    }
+
+    /// Stores (or, with `nil`, forgets) the session id for `workingDirectory`.
+    public func setSessionID(_ sessionID: String?, forWorkingDirectory workingDirectory: String) {
+        var ids = storedSessionIDs
+        ids[Self.directoryKey(workingDirectory)] = sessionID
+        defaults.set(ids, forKey: Key.sessionIDs)
+    }
+
+    private var storedSessionIDs: [String: String] {
+        defaults.dictionary(forKey: Key.sessionIDs) as? [String: String] ?? [:]
+    }
+
+    private static func directoryKey(_ path: String) -> String {
+        URL(fileURLWithPath: (path as NSString).expandingTildeInPath, isDirectory: true).standardizedFileURL.path
     }
 }

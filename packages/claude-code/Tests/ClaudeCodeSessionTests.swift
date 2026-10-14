@@ -66,11 +66,13 @@ private func makeSession(
     _ process: FakeClaudeProcess,
     configuration: ClaudeCodeLaunchConfiguration? = makeConfiguration(),
     approvalTimeout: Duration = .seconds(45),
-    directoryExists: Bool = true
+    directoryExists: Bool = true,
+    initialSessionID: String? = nil
 ) -> ClaudeCodeSession {
     ClaudeCodeSession(
         configuration: configuration,
         process: process,
+        initialSessionID: initialSessionID,
         approvalTimeout: approvalTimeout,
         directoryExists: { _ in directoryExists }
     )
@@ -351,6 +353,17 @@ func `approval ids from two sessions never collide and do not resolve each other
     await first.resolveApproval(id: firstID, allow: false)
     #expect(await secondDecision == .deny(reason: ClaudeCodeSession.deniedByUserReason))
     #expect(await firstDecision == .deny(reason: ClaudeCodeSession.deniedByUserReason))
+}
+
+@Test func `a session constructed with a stored id resumes it on first launch`() async throws {
+    let process = FakeClaudeProcess()
+    let session = makeSession(process, initialSessionID: "saved")
+    #expect(await session.sessionID == "saved")
+    try await session.submit("続けて")
+    #expect(await process.startResumes == ["saved"])
+    let arguments = try #require(await process.startArguments.first)
+    let index = try #require(arguments.firstIndex(of: "--resume"))
+    #expect(arguments[index + 1] == "saved")
 }
 
 @Test(.timeLimit(.minutes(1)))
