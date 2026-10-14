@@ -91,14 +91,17 @@ Claude Codeがファイルの書き換えやコマンドの実行をしようと
 
 承認の中継には、補助プログラム`utatane-mcp`を使います。リリースビルドではアプリ内（`Contents/Helpers`）に同梱しますが、Debugビルドには同梱しません。補助プログラムが見つからない間は、承認を経由せずにClaude Codeが動くことがないよう、起動を取りやめます。「承認用のヘルパーが見つかりません」と表示されます。
 
-Debugビルドで試すには、補助プログラムをビルドし、環境変数`UTATANE_MCP_PATH`に指定してUtataneを起動します。
+Debugビルドで試すには、補助プログラムをビルドし、環境変数`UTATANE_MCP_PATH`にそのパスを指定してUtataneを起動します。環境変数はアプリの起動時に設定する必要があり、指定したファイルは存在して実行可能でなければなりません。`open -a Utatane`のようにシェルの環境変数を引き継がない起動方法では効きません。
 
 ```sh
 swift build --package-path packages --product utatane-mcp
-UTATANE_MCP_PATH="$PWD/packages/.build/debug/utatane-mcp" open -a Utatane
+# 実行ファイルを直接起動する場合（Utatane.appはDebugビルドの場所に読み替えてください）
+UTATANE_MCP_PATH="$PWD/packages/.build/debug/utatane-mcp" /path/to/Utatane.app/Contents/MacOS/Utatane
+# または open の --env を使う場合
+open --env UTATANE_MCP_PATH="$PWD/packages/.build/debug/utatane-mcp" /path/to/Utatane.app
 ```
 
-Xcodeから実行する場合は、スキームの環境変数へ同じ値を設定してください。
+Xcodeから実行する場合は、「Scheme」→「Run」→「Arguments」→「Environment Variables」へ`UTATANE_MCP_PATH`を追加し、値に上のパスを指定します。
 
 ## 制限
 
