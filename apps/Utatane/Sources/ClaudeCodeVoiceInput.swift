@@ -1,4 +1,5 @@
 import Foundation
+import UtataneClaudeCode
 import UtatanePlatformMacOS
 
 /// Push-to-talk for Claude Code: listens while the hotkey is held and hands over each recognized utterance.
@@ -7,7 +8,9 @@ import UtatanePlatformMacOS
 /// `enable(hotkey:)` is called; the recognizer itself is created on the first key press.
 @MainActor
 final class ClaudeCodeVoiceInput {
-    var onUtterance: ((String) -> Void)?
+    /// Called on each key press; the returned approval is handed back with every utterance of that hold.
+    var onHoldBegan: (() -> ClaudeCodeApprovalID?)?
+    var onUtterance: ((String, ClaudeCodeApprovalID?) -> Void)?
     var onListeningChange: ((Bool) -> Void)?
     var onFailure: ((String) -> Void)?
 
@@ -19,6 +22,8 @@ final class ClaudeCodeVoiceInput {
     private var monitor: ClaudeCodeHotkeyMonitor?
     private var recognizer: MacOSSpeechRecognizer?
     private var isHolding = false
+    /// The approval pending when the current (or last) hold began.
+    private var holdBinding: ClaudeCodeApprovalID?
 
     var isEnabled: Bool {
         monitor != nil
@@ -43,6 +48,7 @@ final class ClaudeCodeVoiceInput {
 
     private func beginListening() {
         isHolding = true
+        holdBinding = onHoldBegan?()
         let recognizer = recognizer ?? makeRecognizer()
         self.recognizer = recognizer
         onListeningChange?(true)
@@ -72,7 +78,8 @@ final class ClaudeCodeVoiceInput {
     private func makeRecognizer() -> MacOSSpeechRecognizer {
         let recognizer = MacOSSpeechRecognizer()
         recognizer.onFinalResult = { [weak self] text in
-            self?.onUtterance?(text)
+            guard let self else { return }
+            self.onUtterance?(text, self.holdBinding)
         }
         recognizer.onError = { [weak self] _ in
             guard let self, self.isHolding else { return }

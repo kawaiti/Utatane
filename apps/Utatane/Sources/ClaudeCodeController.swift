@@ -37,10 +37,13 @@ final class ClaudeCodeController {
         self.settings = settings
         self.speak = speak
         transcript.onSubmit = { [weak self] text in self?.submitText(text) }
-        transcript.onApprove = { [weak self] in self?.resolveCurrentApproval(allow: true) }
-        transcript.onDeny = { [weak self] in self?.resolveCurrentApproval(allow: false) }
+        transcript.onResolve = { [weak self] id, allow in self?.resolveApproval(id, allow: allow) }
         transcript.onInterrupt = { [weak self] in self?.interrupt() }
-        voiceInput.onUtterance = { [weak self] text in self?.handleUtterance(text) }
+        // Bind each hold-to-talk press to the approval pending at that moment (if any).
+        voiceInput.onHoldBegan = { [weak self] in self?.currentApproval?.request.approvalID }
+        voiceInput.onUtterance = { [weak self] text, boundApproval in
+            self?.handleUtterance(text, boundTo: boundApproval)
+        }
         voiceInput.onListeningChange = { [weak self] listening in self?.transcript.isListening = listening }
         voiceInput.onFailure = { [weak self] message in self?.notify(message) }
         terminationObserver = NotificationCenter.default.addObserver(
@@ -129,7 +132,10 @@ final class ClaudeCodeController {
         showTranscript()
         speak(ClaudeCodeApprovalText.prompt(for: request))
 
-        let decision = await session.requestApproval(toolName: toolName, command: command)
+        let requestID = request.id
+        let decision = await session.requestApproval(toolName: toolName, command: command) { [weak self] approvalID in
+            Task { @MainActor in self?.approvalPresented(requestID: requestID, approvalID: approvalID) }
+        }
         if currentApproval?.request.id == request.id {
             currentApproval = nil
             transcript.pendingApproval = nil
@@ -144,9 +150,19 @@ final class ClaudeCodeController {
         }
     }
 
-    private func resolveCurrentApproval(allow: Bool) {
-        guard let (_, session) = currentApproval else { return }
-        Task { await session.resolveApproval(allow: allow) }
+    /// Records the session's id for the request on screen; until then its buttons stay disabled.
+    private func approvalPresented(requestID: UUID, approvalID: ClaudeCodeApprovalID) {
+        guard let current = currentApproval, current.request.id == requestID else { return }
+        var request = current.request
+        request.approvalID = approvalID
+        currentApproval = (request, current.session)
+        transcript.pendingApproval = request
+    }
+
+    /// Resolves only the approval `id`, and only while it is the one on screen; anything else is ignored.
+    private func resolveApproval(_ id: ClaudeCodeApprovalID, allow: Bool) {
+        guard let (request, session) = currentApproval, request.approvalID == id else { return }
+        Task { await session.resolveApproval(id: id, allow: allow) }
     }
 
     // MARK: - Voice
@@ -165,31 +181,54 @@ final class ClaudeCodeController {
         }
     }
 
-    private func handleUtterance(_ text: String) {
+    /// `boundApproval` is the approval that was pending when the hotkey was pressed for this utterance.
+    private func handleUtterance(_ text: String, boundTo boundApproval: ClaudeCodeApprovalID?) {
         transcript.append(.heard, text)
         Task {
             let state = await session?.state ?? .idle
+            if boundApproval != nil || currentApproval != nil, answerApproval(text, boundTo: boundApproval) {
+                return
+            }
             route(router.route(text, state: state, awaitingReadback: pendingReadback != nil))
         }
+    }
+
+    /// Applies a spoken「はい」/「いいえ」to an approval. Returns whether the utterance was consumed as an answer,
+    /// including a stale answer that is dropped so it is never taken as an instruction or a readback reply.
+    private func answerApproval(_ text: String, boundTo boundApproval: ClaudeCodeApprovalID?) -> Bool {
+        let answer = router.route(text, state: .awaitingApproval, awaitingReadback: false)
+        let current = currentApproval?.request
+        if current != nil, current?.approvalID == nil, answer == .approve || answer == .deny {
+            return true // The request is not registered yet; an answer cannot be bound to it.
+        }
+        switch VoiceApprovalBinding.action(
+            for: answer,
+            listeningBoundTo: boundApproval,
+            current: current?.approvalID,
+            currentIsDangerous: current?.isDangerous ?? false
+        ) {
+        case .none:
+            return false
+        case let .resolve(id, allow):
+            resolveApproval(id, allow: allow)
+        case .refuseDangerous:
+            speak("危険な操作なので、画面の許可ボタンで確認してください")
+        case .ignoreStale:
+            transcript.append(.notice, "前の確認への返事として聞き取ったため、使いませんでした")
+        }
+        return true
     }
 
     private func route(_ command: VoiceCommand) {
         switch command {
         case .approve:
-            if let (request, _) = currentApproval {
-                guard !request.isDangerous else {
-                    speak("危険な操作なので、画面の許可ボタンで確認してください")
-                    return
-                }
-                resolveCurrentApproval(allow: true)
-            } else if let instruction = pendingReadback {
+            // Approval answers were handled by `answerApproval`; here only a readback can be confirmed.
+            if currentApproval == nil, let instruction = pendingReadback {
                 pendingReadback = nil
                 send(instruction)
             }
         case .deny:
-            if currentApproval != nil {
-                resolveCurrentApproval(allow: false)
-            } else if pendingReadback != nil {
+            if currentApproval == nil, pendingReadback != nil {
                 pendingReadback = nil
                 speak("取りやめました")
             }

@@ -9,6 +9,11 @@ public protocol ClaudeCodeProcessing: Sendable {
     func terminate() async
 }
 
+/// Identifies one approval request, so a decision can only resolve the request it was made for.
+public struct ClaudeCodeApprovalID: Hashable, Sendable {
+    let rawValue: UInt64
+}
+
 public enum ApprovalDecision: Equatable, Sendable {
     case allow
     case deny(reason: String)
@@ -28,7 +33,7 @@ public actor ClaudeCodeSession {
     static let notRunningReason = "実行中の指示がないため拒否しました"
 
     private struct PendingApproval {
-        let id: UInt64
+        let id: ClaudeCodeApprovalID
         let continuation: CheckedContinuation<ApprovalDecision, Never>
         var timeout: Task<Void, Never>?
     }
@@ -98,15 +103,23 @@ public actor ClaudeCodeSession {
     }
 
     /// Suspends until the user decides, the timeout elapses (deny), or the session is interrupted (deny).
-    public func requestApproval(toolName: String, command: String?) async -> ApprovalDecision {
+    ///
+    /// `presented` receives the request's id once it is pending; only `resolveApproval(id:allow:)` with that id
+    /// can decide it. A request that is denied immediately (not running, another one pending) is never presented.
+    public func requestApproval(
+        toolName: String,
+        command: String?,
+        presented: @escaping @Sendable (ClaudeCodeApprovalID) -> Void = { _ in }
+    ) async -> ApprovalDecision {
         guard state == .running, pendingApproval == nil else {
             return .deny(reason: Self.notRunningReason)
         }
         nextApprovalID += 1
-        let id = nextApprovalID
+        let id = ClaudeCodeApprovalID(rawValue: nextApprovalID)
         state = .awaitingApproval
         return await withCheckedContinuation { continuation in
             pendingApproval = PendingApproval(id: id, continuation: continuation)
+            presented(id)
             let timeout = approvalTimeout
             // Inherits the actor's isolation, so the completion runs on the actor.
             pendingApproval?.timeout = Task {
@@ -116,10 +129,10 @@ public actor ClaudeCodeSession {
         }
     }
 
-    /// Resolves the pending approval. Without one (never requested, already resolved or timed out) it does nothing.
-    public func resolveApproval(allow: Bool) {
-        guard let pendingApproval else { return }
-        completeApproval(id: pendingApproval.id, with: allow ? .allow : .deny(reason: Self.deniedByUserReason))
+    /// Resolves the approval `id` if it is still the pending one. A stale id (already resolved, timed out,
+    /// interrupted, or an earlier request) does nothing, so a late answer can never decide a newer request.
+    public func resolveApproval(id: ClaudeCodeApprovalID, allow: Bool) {
+        completeApproval(id: id, with: allow ? .allow : .deny(reason: Self.deniedByUserReason))
     }
 
     /// Interrupts the current turn and denies any pending approval.
@@ -131,7 +144,7 @@ public actor ClaudeCodeSession {
     }
 
     /// The only place a continuation is resumed: it is cleared first, so a racing resolve/timeout/interrupt is a no-op.
-    private func completeApproval(id: UInt64, with decision: ApprovalDecision) {
+    private func completeApproval(id: ClaudeCodeApprovalID, with decision: ApprovalDecision) {
         guard let pending = pendingApproval, pending.id == id else { return }
         pendingApproval = nil
         pending.timeout?.cancel()

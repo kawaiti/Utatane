@@ -67,6 +67,12 @@ private func waitForState(_ expected: ClaudeCodeSessionState, of session: Claude
     }
 }
 
+/// Delivers the ids passed to `presented`, in order.
+private func makeApprovalIDs() -> (stream: AsyncStream<ClaudeCodeApprovalID>, presented: @Sendable (ClaudeCodeApprovalID) -> Void) {
+    let (stream, continuation) = AsyncStream.makeStream(of: ClaudeCodeApprovalID.self)
+    return (stream, { continuation.yield($0) })
+}
+
 /// Consumes the stream until an event matches, returning it.
 private func nextEvent(
     _ iterator: inout AsyncStream<ClaudeCodeEvent>.AsyncIterator,
@@ -113,10 +119,13 @@ private func isFinished(_ event: ClaudeCodeEvent) -> Bool {
     try await session.submit("一つ目")
     await #expect(throws: ClaudeCodeError.busy) { try await session.submit("二つ目") }
 
-    async let decision = session.requestApproval(toolName: "Bash", command: "ls")
-    await waitForState(.awaitingApproval, of: session)
+    let ids = makeApprovalIDs()
+    var presented = ids.stream.makeAsyncIterator()
+    async let decision = session.requestApproval(toolName: "Bash", command: "ls", presented: ids.presented)
+    let id = try #require(await presented.next())
+    #expect(await session.state == .awaitingApproval)
     await #expect(throws: ClaudeCodeError.busy) { try await session.submit("三つ目") }
-    await session.resolveApproval(allow: false)
+    await session.resolveApproval(id: id, allow: false)
     _ = await decision
     #expect(await process.sentMessages == ["一つ目"])
 }
@@ -143,10 +152,13 @@ private func isFinished(_ event: ClaudeCodeEvent) -> Bool {
     let session = makeSession(process)
     try await session.submit("編集して")
 
-    async let decision = session.requestApproval(toolName: "Edit", command: nil)
-    await waitForState(.awaitingApproval, of: session)
-    await session.resolveApproval(allow: true)
-    await session.resolveApproval(allow: false) // second resolve is ignored
+    let ids = makeApprovalIDs()
+    var presented = ids.stream.makeAsyncIterator()
+    async let decision = session.requestApproval(toolName: "Edit", command: nil, presented: ids.presented)
+    let id = try #require(await presented.next())
+    #expect(await session.state == .awaitingApproval)
+    await session.resolveApproval(id: id, allow: true)
+    await session.resolveApproval(id: id, allow: false) // second resolve is ignored
     #expect(await decision == .allow)
     #expect(await session.state == .running)
 }
@@ -156,9 +168,11 @@ private func isFinished(_ event: ClaudeCodeEvent) -> Bool {
     let session = makeSession(process)
     try await session.submit("消して")
 
-    async let decision = session.requestApproval(toolName: "Bash", command: "rm -rf build")
-    await waitForState(.awaitingApproval, of: session)
-    await session.resolveApproval(allow: false)
+    let ids = makeApprovalIDs()
+    var presented = ids.stream.makeAsyncIterator()
+    async let decision = session.requestApproval(toolName: "Bash", command: "rm -rf build", presented: ids.presented)
+    let id = try #require(await presented.next())
+    await session.resolveApproval(id: id, allow: false)
     guard case .deny = await decision else {
         Issue.record("expected deny")
         return
@@ -171,25 +185,72 @@ private func isFinished(_ event: ClaudeCodeEvent) -> Bool {
     let session = makeSession(process, approvalTimeout: .milliseconds(50))
     try await session.submit("編集して")
 
-    let decision = await session.requestApproval(toolName: "Write", command: nil)
+    let ids = makeApprovalIDs()
+    var presented = ids.stream.makeAsyncIterator()
+    let decision = await session.requestApproval(toolName: "Write", command: nil, presented: ids.presented)
     guard case .deny = decision else {
         Issue.record("expected deny after timeout, got \(decision)")
         return
     }
     #expect(await session.state == .running)
-    await session.resolveApproval(allow: true)
+    let id = try #require(await presented.next())
+    await session.resolveApproval(id: id, allow: true)
     #expect(await session.state == .running)
 }
 
-@Test func `resolve approval without a pending request does nothing`() async throws {
+@Test func `resolving with an id when nothing is pending does nothing`() async throws {
     let process = FakeClaudeProcess()
     let session = makeSession(process)
-    await session.resolveApproval(allow: true)
+    let unknown = ClaudeCodeApprovalID(rawValue: 1)
+    await session.resolveApproval(id: unknown, allow: true)
     #expect(await session.state == .idle)
 
     try await session.submit("作業して")
-    await session.resolveApproval(allow: false)
+    await session.resolveApproval(id: unknown, allow: false)
     #expect(await session.state == .running)
+}
+
+@Test func `a stale resolve with an old approval id does not resolve a newer request`() async throws {
+    let process = FakeClaudeProcess()
+    let session = makeSession(process)
+    try await session.submit("作業して")
+    let ids = makeApprovalIDs()
+    var presented = ids.stream.makeAsyncIterator()
+
+    async let first = session.requestApproval(toolName: "Bash", command: "make", presented: ids.presented)
+    let firstID = try #require(await presented.next())
+    await session.resolveApproval(id: firstID, allow: true)
+    #expect(await first == .allow)
+
+    async let second = session.requestApproval(toolName: "Bash", command: "make install", presented: ids.presented)
+    let secondID = try #require(await presented.next())
+    #expect(secondID != firstID)
+    await session.resolveApproval(id: firstID, allow: true) // late answer meant for the first request
+    #expect(await session.state == .awaitingApproval)
+
+    // The stale allow did not decide it: the newer request is still decided by its own id.
+    await session.resolveApproval(id: secondID, allow: false)
+    #expect(await second == .deny(reason: ClaudeCodeSession.deniedByUserReason))
+    #expect(await session.state == .running)
+}
+
+@Test func `a newer request resolves only with its own id`() async throws {
+    let process = FakeClaudeProcess()
+    let session = makeSession(process)
+    try await session.submit("作業して")
+    let ids = makeApprovalIDs()
+    var presented = ids.stream.makeAsyncIterator()
+
+    async let first = session.requestApproval(toolName: "Edit", command: nil, presented: ids.presented)
+    let firstID = try #require(await presented.next())
+    await session.resolveApproval(id: firstID, allow: false)
+    _ = await first
+
+    async let second = session.requestApproval(toolName: "Edit", command: nil, presented: ids.presented)
+    let secondID = try #require(await presented.next())
+    await session.resolveApproval(id: firstID, allow: true)
+    await session.resolveApproval(id: secondID, allow: true)
+    #expect(await second == .allow)
 }
 
 @Test func `stdout ending without result finishes with an error and the next submit resumes`() async throws {

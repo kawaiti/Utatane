@@ -1,5 +1,6 @@
 import AppKit
 import SwiftUI
+import UtataneClaudeCode
 
 struct ClaudeCodeTranscriptEntry: Identifiable, Equatable {
     enum Kind: Equatable {
@@ -26,6 +27,8 @@ struct ClaudeCodeApprovalRequest: Identifiable, Equatable {
     let filePath: String?
     /// Dangerous requests can only be allowed with the on-screen button.
     let isDangerous: Bool
+    /// The session's id for this request, known once it is pending. The buttons resolve only this id.
+    var approvalID: ClaudeCodeApprovalID?
 }
 
 @MainActor
@@ -39,8 +42,7 @@ final class ClaudeCodeTranscriptModel: ObservableObject {
     @Published var draft = ""
 
     var onSubmit: ((String) -> Void)?
-    var onApprove: (() -> Void)?
-    var onDeny: (() -> Void)?
+    var onResolve: ((ClaudeCodeApprovalID, Bool) -> Void)?
     var onInterrupt: (() -> Void)?
 
     func append(_ kind: ClaudeCodeTranscriptEntry.Kind, _ text: String) {
@@ -113,8 +115,7 @@ private struct ClaudeCodeTranscriptView: View {
                 Divider()
                 ClaudeCodeApprovalView(
                     request: request,
-                    onApprove: { model.onApprove?() },
-                    onDeny: { model.onDeny?() }
+                    onResolve: { id, allow in model.onResolve?(id, allow) }
                 )
                 .padding(12)
             }
@@ -193,8 +194,7 @@ private struct ClaudeCodeTranscriptRow: View {
 
 private struct ClaudeCodeApprovalView: View {
     let request: ClaudeCodeApprovalRequest
-    let onApprove: () -> Void
-    let onDeny: () -> Void
+    let onResolve: (ClaudeCodeApprovalID, Bool) -> Void
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
@@ -224,8 +224,14 @@ private struct ClaudeCodeApprovalView: View {
             }
             HStack {
                 Spacer()
-                Button("拒否", action: onDeny)
-                Button("許可", action: onApprove)
+                // Each button carries the id of the request shown, so a click cannot decide a later request.
+                if let approvalID = request.approvalID {
+                    Button("拒否") { onResolve(approvalID, false) }
+                    Button("許可") { onResolve(approvalID, true) }
+                } else {
+                    Button("拒否") {}.disabled(true)
+                    Button("許可") {}.disabled(true)
+                }
             }
         }
     }
