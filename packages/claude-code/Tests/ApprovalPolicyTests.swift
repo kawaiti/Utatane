@@ -33,3 +33,32 @@ import Testing
         #expect(!ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
     }
 }
+
+@Test func `quoted or escaped command names are still recognised`() {
+    for command in [#"\rm -rf x"#, #""rm" x"#, "'rm' x", #""/bin/rm" x"#, #"r\m x"#, #""sudo" ls"#, #"git "push""#, #""env" rm x"#] {
+        #expect(ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
+    }
+}
+
+@Test func `env options that take a value do not hide the command`() {
+    for command in ["env -u FOO rm x", "env -C /tmp rm x", "env --unset=FOO rm x", "env -i -u FOO BAR=1 rm x", "env -P /bin rm x"] {
+        #expect(ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
+    }
+    #expect(!ApprovalPolicy.isDangerous(toolName: "Bash", command: "env -u FOO ls"))
+}
+
+@Test func `commands that run other commands from strings or input are flagged`() {
+    for command in [
+        #"bash -c "rm -rf x""#, "sh -c ls", "zsh -c 'echo hi'", "dash -c x", "bash -lc ls", "/bin/sh -xc ls",
+        "eval ls", "xargs echo", "find . -name x | xargs rm", "env -S 'rm -rf x'",
+        "find . -delete", "find . -name '*.o' -exec rm {} ;", "find . -execdir ls {} +", "cat a | dash"
+    ] {
+        #expect(ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
+    }
+}
+
+@Test func `ordinary commands that resemble the new rules are not flagged`() {
+    for command in ["echo hi", "find . -name x", "bash script.sh", "ls", "sh ./configure", "echo eval", "find . -type f -print"] {
+        #expect(!ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
+    }
+}
