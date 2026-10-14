@@ -201,7 +201,7 @@ private func isFinished(_ event: ClaudeCodeEvent) -> Bool {
 @Test func `resolving with an id when nothing is pending does nothing`() async throws {
     let process = FakeClaudeProcess()
     let session = makeSession(process)
-    let unknown = ClaudeCodeApprovalID(rawValue: 1)
+    let unknown = ClaudeCodeApprovalID(rawValue: .max)
     await session.resolveApproval(id: unknown, allow: true)
     #expect(await session.state == .idle)
 
@@ -309,4 +309,30 @@ private func isFinished(_ event: ClaudeCodeEvent) -> Bool {
         return
     }
     #expect(await session.state == .idle)
+}
+
+@Test(.timeLimit(.minutes(1)))
+func `approval ids from two sessions never collide and do not resolve each other`() async throws {
+    let first = makeSession(FakeClaudeProcess())
+    let second = makeSession(FakeClaudeProcess())
+    try await first.submit("一つ目")
+    try await second.submit("二つ目")
+    let firstIDs = makeApprovalIDs()
+    let secondIDs = makeApprovalIDs()
+    var firstPresented = firstIDs.stream.makeAsyncIterator()
+    var secondPresented = secondIDs.stream.makeAsyncIterator()
+
+    async let firstDecision = first.requestApproval(toolName: "Bash", command: "make", presented: firstIDs.presented)
+    async let secondDecision = second.requestApproval(toolName: "Bash", command: "make", presented: secondIDs.presented)
+    let firstID = try #require(await firstPresented.next())
+    let secondID = try #require(await secondPresented.next())
+    #expect(firstID != secondID)
+
+    // An id from the other session is stale here.
+    await second.resolveApproval(id: firstID, allow: true)
+    #expect(await second.state == .awaitingApproval)
+    await second.resolveApproval(id: secondID, allow: false)
+    await first.resolveApproval(id: firstID, allow: false)
+    #expect(await secondDecision == .deny(reason: ClaudeCodeSession.deniedByUserReason))
+    #expect(await firstDecision == .deny(reason: ClaudeCodeSession.deniedByUserReason))
 }

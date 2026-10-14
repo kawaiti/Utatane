@@ -10,8 +10,27 @@ public protocol ClaudeCodeProcessing: Sendable {
 }
 
 /// Identifies one approval request, so a decision can only resolve the request it was made for.
+/// Ids are unique within the app process, across sessions, so an id from a retired session never matches a new one.
 public struct ClaudeCodeApprovalID: Hashable, Sendable {
     let rawValue: UInt64
+
+    private final class Counter: @unchecked Sendable {
+        private let lock = NSLock()
+        private var last: UInt64 = 0
+
+        func next() -> UInt64 {
+            lock.withLock {
+                last += 1
+                return last
+            }
+        }
+    }
+
+    private static let counter = Counter()
+
+    static func next() -> ClaudeCodeApprovalID {
+        ClaudeCodeApprovalID(rawValue: counter.next())
+    }
 }
 
 public enum ApprovalDecision: Equatable, Sendable {
@@ -53,7 +72,6 @@ public actor ClaudeCodeSession {
     private var processGeneration: UInt64 = 0
     private var isProcessActive = false
     private var pendingApproval: PendingApproval?
-    private var nextApprovalID: UInt64 = 0
 
     public init(
         configuration: ClaudeCodeLaunchConfiguration?,
@@ -114,8 +132,7 @@ public actor ClaudeCodeSession {
         guard state == .running, pendingApproval == nil else {
             return .deny(reason: Self.notRunningReason)
         }
-        nextApprovalID += 1
-        let id = ClaudeCodeApprovalID(rawValue: nextApprovalID)
+        let id = ClaudeCodeApprovalID.next()
         state = .awaitingApproval
         return await withCheckedContinuation { continuation in
             pendingApproval = PendingApproval(id: id, continuation: continuation)
