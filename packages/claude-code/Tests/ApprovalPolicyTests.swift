@@ -21,3 +21,15 @@ import Testing
     #expect(!ApprovalPolicy.isDangerous(toolName: "Write", command: nil))
     #expect(!ApprovalPolicy.isDangerous(toolName: "Bash", command: nil))
 }
+
+@Test func `prefixes, wrappers, paths and background separators do not hide danger`() {
+    for command in ["FOO=1 rm x", "/bin/rm -rf x", "command rm x", "env rm x", "nohup rm x", "time rm x", "ls & rm x", "env -i FOO=1 rm x", "/usr/bin/sudo ls"] {
+        #expect(ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
+    }
+}
+
+@Test func `prefixed or pathed safe commands are not flagged`() {
+    for command in ["FOO=1 ls", "env ls -la", "/bin/ls", "ls & echo hi"] {
+        #expect(!ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
+    }
+}
