@@ -68,6 +68,14 @@ final class ClaudeCodeHotkeyMonitor {
         }
     }
 
+    /// Forgets a held key without calling `onRelease`, e.g. when a hold was ended because its key-up never came.
+    func resetHold() {
+        longPressTask?.cancel()
+        longPressTask = nil
+        isKeyDown = false
+        isActive = false
+    }
+
     /// Returns whether the event belongs to the hotkey and should not reach this app's views.
     private func handle(_ key: KeySnapshot) -> Bool {
         switch hotkey {

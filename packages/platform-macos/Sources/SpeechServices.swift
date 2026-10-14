@@ -308,15 +308,21 @@ public struct SpeechRecognitionConfiguration: Sendable, Equatable {
     public var localeIdentifier: String
     public var prefersOnDeviceRecognition: Bool
     public var contextualStrings: [String]
+    /// When `true` (the default), a partial result left unchanged for one second is delivered as final and
+    /// recognition restarts. Push-to-talk turns this off and collects the text with `finish()` on release,
+    /// so a pause mid-sentence does not split the utterance or drop words during the restart.
+    public var finalizesAfterPause: Bool
 
     public init(
         localeIdentifier: String = Locale.current.identifier,
         prefersOnDeviceRecognition: Bool = true,
-        contextualStrings: [String] = []
+        contextualStrings: [String] = [],
+        finalizesAfterPause: Bool = true
     ) {
         self.localeIdentifier = localeIdentifier
         self.prefersOnDeviceRecognition = prefersOnDeviceRecognition
         self.contextualStrings = contextualStrings
+        self.finalizesAfterPause = finalizesAfterPause
     }
 }
 
@@ -343,12 +349,15 @@ public final class MacOSSpeechRecognizer {
 
     public func start(configuration: SpeechRecognitionConfiguration) async throws {
         stop()
+        let startGeneration = generation
         guard await Self.requestMicrophonePermission() else {
             throw SpeechServiceError.microphonePermissionDenied
         }
         guard await Self.requestRecognitionPermission() else {
             throw SpeechServiceError.recognitionPermissionDenied
         }
+        // `stop()` or `finish()` was called while permissions were requested: do not turn the microphone on.
+        guard generation == startGeneration else { return }
 
         let locale = Locale(identifier: configuration.localeIdentifier)
         guard let recognizer = SFSpeechRecognizer(locale: locale), recognizer.isAvailable else {
@@ -458,6 +467,7 @@ public final class MacOSSpeechRecognizer {
     private func scheduleFinalization(of text: String, after generation: Int) {
         guard !text.isEmpty else { return }
         pendingPartialText = text
+        guard configuration?.finalizesAfterPause ?? true else { return }
         finalizationTask?.cancel()
         finalizationTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(1))
