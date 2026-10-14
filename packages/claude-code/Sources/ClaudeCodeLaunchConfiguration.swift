@@ -8,6 +8,11 @@ public enum ClaudeCodePermissionMode: String, Sendable {
 public struct ClaudeCodeLaunchConfiguration: Sendable, Equatable {
     public static let approvalToolName = "mcp__utatane__approve"
     public static let autoAllowedTools = "Read,Glob,Grep,LS"
+    /// Only the user's own settings are loaded. A working directory's `.claude/settings.json` and
+    /// `settings.local.json` could otherwise allow tools or add `PreToolUse` hooks that bypass the approval tool.
+    /// The flag comes from the Claude Code CLI documentation and has not been checked against a real `claude`.
+    /// User-level rules and hooks in `~/.claude/settings.json` still apply.
+    public static let settingSources = "user"
     public static let appendedSystemPrompt = "音声で読み上げられます。日本語で3文以内に要約して答えてください。詳細は画面に表示されます。"
 
     public var executable: URL
@@ -34,6 +39,7 @@ public struct ClaudeCodeLaunchConfiguration: Sendable, Equatable {
             "--permission-mode", permissionMode.rawValue,
             "--permission-prompt-tool", Self.approvalToolName,
             "--allowedTools", Self.autoAllowedTools,
+            "--setting-sources", Self.settingSources,
             "--append-system-prompt", Self.appendedSystemPrompt,
             "--mcp-config", mcpConfigJSON
         ]

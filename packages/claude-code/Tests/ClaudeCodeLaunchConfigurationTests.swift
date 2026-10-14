@@ -26,6 +26,8 @@ private func value(after flag: String, in arguments: [String]) -> String? {
     #expect(value(after: "--permission-mode", in: arguments) == "default")
     #expect(value(after: "--permission-prompt-tool", in: arguments) == "mcp__utatane__approve")
     #expect(value(after: "--allowedTools", in: arguments) == "Read,Glob,Grep,LS")
+    // Project and local Claude Code settings could pre-allow tools or add hooks that bypass the approval tool.
+    #expect(value(after: "--setting-sources", in: arguments) == "user")
     #expect(value(after: "--append-system-prompt", in: arguments) == "音声で読み上げられます。日本語で3文以内に要約して答えてください。詳細は画面に表示されます。")
     #expect(!arguments.contains("--resume"))
     #expect(!arguments.contains("--model"))
