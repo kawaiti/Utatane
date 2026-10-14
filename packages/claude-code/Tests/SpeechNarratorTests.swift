@@ -56,3 +56,10 @@ import Testing
     #expect(SpeechNarrator.narrate(.finished(result: "プロセスが終了しました", isError: true, sessionID: "s"))
         == "うまくいきませんでした: プロセスが終了しました")
 }
+
+@Test func `failed result with a subtype message is not spoken empty`() throws {
+    let line = #"{"type":"result","subtype":"error_max_turns","is_error":true}"#
+    let event = try #require(ClaudeCodeEventParser.parse(line: line).first)
+    #expect(SpeechNarrator.narrate(event) == "うまくいきませんでした: やり取りの回数の上限に達しました")
+    #expect(SpeechNarrator.narrate(.finished(result: "  ", isError: true, sessionID: nil)) == "うまくいきませんでした")
+}

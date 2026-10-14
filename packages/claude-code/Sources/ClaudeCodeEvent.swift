@@ -39,13 +39,24 @@ public enum ClaudeCodeEventParser {
                 return .toolResult(id: id, isError: block["is_error"] as? Bool ?? false)
             }
         case "result":
-            return [.finished(
-                result: object["result"] as? String ?? "",
-                isError: object["is_error"] as? Bool ?? false,
-                sessionID: object["session_id"] as? String
-            )]
+            let isError = object["is_error"] as? Bool ?? false
+            var result = object["result"] as? String ?? ""
+            if isError, result.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                result = errorMessage(forSubtype: object["subtype"] as? String)
+            }
+            return [.finished(result: result, isError: isError, sessionID: object["session_id"] as? String)]
         default:
             return []
+        }
+    }
+
+    /// Error results such as `error_max_turns` carry no `result` text; this keeps the spoken error from being empty.
+    static func errorMessage(forSubtype subtype: String?) -> String {
+        switch subtype {
+        case "error_max_turns"?: "やり取りの回数の上限に達しました"
+        case "error_during_execution"?: "実行中にエラーが起きました"
+        case let subtype? where !subtype.isEmpty: "エラーが起きました (\(subtype))"
+        default: "エラーが起きました"
         }
     }
 

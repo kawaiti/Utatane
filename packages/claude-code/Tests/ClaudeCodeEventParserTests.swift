@@ -16,3 +16,17 @@ import Testing
         #expect(ClaudeCodeEventParser.parse(line: line) == [])
     }
 }
+
+@Test func `error results without text fall back to a message for their subtype`() {
+    #expect(ClaudeCodeEventParser.parse(line: #"{"type":"result","subtype":"error_max_turns","is_error":true,"session_id":"s1"}"#)
+        == [.finished(result: "やり取りの回数の上限に達しました", isError: true, sessionID: "s1")])
+    #expect(ClaudeCodeEventParser.parse(line: #"{"type":"result","subtype":"error_during_execution","is_error":true,"result":""}"#)
+        == [.finished(result: "実行中にエラーが起きました", isError: true, sessionID: nil)])
+    #expect(ClaudeCodeEventParser.parse(line: #"{"type":"result","subtype":"error_something_new","is_error":true}"#)
+        == [.finished(result: "エラーが起きました (error_something_new)", isError: true, sessionID: nil)])
+    // A result with text keeps its text; a successful empty result stays empty.
+    #expect(ClaudeCodeEventParser.parse(line: #"{"type":"result","subtype":"error_during_execution","is_error":true,"result":"失敗"}"#)
+        == [.finished(result: "失敗", isError: true, sessionID: nil)])
+    #expect(ClaudeCodeEventParser.parse(line: #"{"type":"result","subtype":"success","is_error":false,"result":""}"#)
+        == [.finished(result: "", isError: false, sessionID: nil)])
+}

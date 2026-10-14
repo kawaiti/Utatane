@@ -18,6 +18,7 @@ public enum SpeechNarrator {
         case let .finished(result, isError, _):
             let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
             if isError {
+                if trimmed.isEmpty { return "うまくいきませんでした" }
                 return "うまくいきませんでした: " + String(trimmed.prefix(errorLimit))
             }
             if trimmed.isEmpty { return "終わりました" }
