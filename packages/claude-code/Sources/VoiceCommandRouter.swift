@@ -14,6 +14,8 @@ public struct VoiceCommandRouter: Sendable {
     private static let denyWords: Set<String> = ["いいえ", "拒否", "だめ", "ダメ", "やめて", "キャンセル"]
     private static let interruptWords: Set<String> = ["止めて", "とめて", "中断", "ストップ"]
     private static let punctuation = CharacterSet(charactersIn: "。、.!！?？")
+    /// Polite endings removed before matching deny and interrupt words, so「止めてください」is「止めて」.
+    private static let politeSuffixes = ["ください", "下さい"]
 
     public init() {}
 
@@ -24,14 +26,18 @@ public struct VoiceCommandRouter: Sendable {
         )).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
         if normalized.isEmpty { return .ignore }
 
+        // Still a whole-phrase match: only the polite ending is removed, and「ください」alone stays as is.
+        let base = Self.politeSuffixes.first { normalized.hasSuffix($0) && normalized.count > $0.count }
+            .map { String(normalized.dropLast($0.count)) } ?? normalized
+
         let awaitingAnswer = state == .awaitingApproval || awaitingReadback
         if awaitingAnswer {
             if Self.approveWords.contains(normalized) { return .approve }
-            if Self.denyWords.contains(normalized) { return .deny }
-            if Self.interruptWords.contains(normalized) { return .interrupt }
+            if Self.denyWords.contains(base) { return .deny }
+            if Self.interruptWords.contains(base) { return .interrupt }
             return .ignore
         }
-        if Self.interruptWords.contains(normalized) || normalized == "やめて" { return .interrupt }
+        if Self.interruptWords.contains(base) || base == "やめて" { return .interrupt }
         if state == .running { return .busy }
         return .instruction(trimmed)
     }

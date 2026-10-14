@@ -60,3 +60,18 @@ private let router = VoiceCommandRouter()
     #expect(router.route("はいはい了解", state: .awaitingApproval, awaitingReadback: false) == .ignore)
     #expect(router.route("ストップウォッチを作って", state: .idle, awaitingReadback: false) == .instruction("ストップウォッチを作って"))
 }
+
+@Test func `polite interrupt forms interrupt`() {
+    for text in ["止めてください", "とめてください", "止めて下さい", "やめてください", "やめて下さい。"] {
+        #expect(router.route(text, state: .running, awaitingReadback: false) == .interrupt, "\(text)")
+        #expect(router.route(text, state: .idle, awaitingReadback: false) == .interrupt, "\(text)")
+    }
+    #expect(router.route("止めてください", state: .awaitingApproval, awaitingReadback: false) == .interrupt)
+    #expect(router.route("やめてください", state: .awaitingApproval, awaitingReadback: false) == .deny)
+}
+
+@Test func `polite forms still match whole phrases only`() {
+    #expect(router.route("ログ出力を止めてください", state: .idle, awaitingReadback: false) == .instruction("ログ出力を止めてください"))
+    #expect(router.route("ください", state: .idle, awaitingReadback: false) == .instruction("ください"))
+    #expect(router.route("中断してください", state: .running, awaitingReadback: false) == .busy)
+}
