@@ -33,6 +33,7 @@ Web版の公開先は [Utataneドキュメント](https://dl.wmsci.com/utatane/d
 - [Utatane NAR検査](https://utatane-validate.wmsci.com/): NARをアップロードしてSHIORIと基本的な対応状況を確認
 - [ウィンドウモード](Guide/Window-Mode.md): 配信・画面収録向けの単一ウィンドウ表示、背景、スクリーンショット、発話履歴
 - [Realtime音声会話](Guide/Realtime-Voice.md): OpenAI Realtime APIまたは互換APIを使った音声会話の設定
+- [Claude Codeを操作する](Guide/Claude-Code.md): ゴーストを通した音声・文字での指示、承認の仕方、権限
 - [音声合成・音声認識](Guide/Speech.md): macOS標準、ローカル音声合成ソフト、クラウド音声合成と音声認識の設定
 - [IP Messenger](Guide/IP-Messenger.md): 同じLAN上のSSP・IP Messengerとのメッセージ送受信
 - [Native SHIORI / SAORI](Support/Native-SHIORI.md): モジュールの選択、診断と詳細資料への案内
