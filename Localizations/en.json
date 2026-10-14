@@ -620,5 +620,21 @@
   "非表示にしても、MenuBarのUtataneアイコンから設定や終了操作を開ける。" : "Even when hidden, you can open settings or quit from the Utatane icon in the menu bar.",
   "このバルーンは別のゴースト向けです" : "This Balloon Is Intended for Another Ghost",
   "「%@」は「%@」向けに作られています。現在のゴースト「%@」で使うと、表示が崩れることがあります。" : "“%@” was made for “%@”. It may not display correctly with the current ghost “%@”.",
-  "このまま使う" : "Use Anyway"
+  "このまま使う" : "Use Anyway",
+  "声でClaude Codeを操作するための設定。" : "Settings for controlling Claude Code by voice.",
+  "音声操作" : "Voice Control",
+  "音声入力を有効にする" : "Enable Voice Input",
+  "オフの間は、マイクと音声認識の許可を要求せず、ホットキーも登録しない。" : "While off, microphone and speech recognition permissions are not requested and the hotkey is not registered.",
+  "復唱確認" : "Read-back Confirmation",
+  "ホットキー" : "Hotkey",
+  "右Option（長押し）" : "Right Option (hold)",
+  "fn（長押し）" : "fn (hold)",
+  "claudeのパス" : "Path to claude",
+  "自動検出" : "Auto-detect",
+  "クリア" : "Clear",
+  "作業ディレクトリ" : "Working Directory",
+  "既定のモデル" : "Default model",
+  "権限モード" : "Permission Mode",
+  "確認しながら" : "Ask Before Acting",
+  "編集を自動許可" : "Auto-approve Edits"
 }

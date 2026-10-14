@@ -58,6 +58,7 @@ struct UtataneApp: App {
     private let mainPresentationSession: GhostPresentationSession
     private let presentationGeometry: any PresentationGeometryProviding
     @StateObject private var networkSettings: UtataneSettingsStore
+    @StateObject private var claudeCodeSettings = ClaudeCodeSettings()
 
     init() {
         Self.configureApplicationIcon()
@@ -170,6 +171,7 @@ struct UtataneApp: App {
             UtataneSettingsView(
                 settings: networkSettings,
                 contentSources: ContentRoot.contentSourceStore,
+                claudeCodeSettings: claudeCodeSettings,
                 headlineDirectories: ContentRoot.headlineReadDirectories,
                 balloonDirectories: ContentRoot.balloonReadDirectories,
                 appUpdater: updaterController.updater

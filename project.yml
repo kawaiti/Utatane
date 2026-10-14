@@ -139,6 +139,8 @@ targets:
       - package: UtataneKit
         product: UtataneModuleHost
       - package: UtataneKit
+        product: UtataneClaudeCode
+      - package: UtataneKit
         product: UtatanePlugin
       - package: UtataneKit
         product: UtataneMakoto

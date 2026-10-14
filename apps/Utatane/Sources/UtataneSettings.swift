@@ -293,6 +293,7 @@ final class UtataneSettingsStore: ObservableObject {
         case voice
         case shiori
         case network
+        case claudeCode
         case advanced
     }
 
@@ -889,6 +890,7 @@ struct UtataneSettingsView: View {
     @Environment(\.openWindow) private var openWindow
     @ObservedObject var settings: UtataneSettingsStore
     @ObservedObject var contentSources: ContentSourceStore
+    @ObservedObject var claudeCodeSettings: ClaudeCodeSettings
     @ObservedObject private var relauncher = ApplicationRelauncher.shared
     let headlineDirectories: [URL]
     let balloonDirectories: [URL]
@@ -910,6 +912,7 @@ struct UtataneSettingsView: View {
                 Label("音声", systemImage: "waveform").tag(UtataneSettingsStore.Pane.voice)
                 Label("SHIORI", systemImage: "puzzlepiece.extension").tag(UtataneSettingsStore.Pane.shiori)
                 Label("ネットワーク", systemImage: "network").tag(UtataneSettingsStore.Pane.network)
+                Label("Claude Code", systemImage: "terminal").tag(UtataneSettingsStore.Pane.claudeCode)
                 Label("詳細", systemImage: "wrench.and.screwdriver").tag(UtataneSettingsStore.Pane.advanced)
             }
             .listStyle(.sidebar)
@@ -1288,6 +1291,8 @@ struct UtataneSettingsView: View {
                             }
                         }
                     }
+                case .claudeCode:
+                    ClaudeCodeSettingsView(settings: claudeCodeSettings)
                 case .advanced:
                     SettingsPage(
                         title: "詳細",
@@ -1353,6 +1358,7 @@ struct UtataneSettingsView: View {
         case .voice: ("dictation", "音声")
         case .shiori: ("developer", "SHIORI")
         case .network: ("network", "ネットワーク")
+        case .claudeCode: ("developer", "Claude Code")
         case .advanced: ("developer", "詳細")
         }
         return [0: page.0, 1: page.1, 2: "page:\(page.0)", 3: "Utataneの\(page.1)設定"]
