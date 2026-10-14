@@ -100,6 +100,11 @@ private var approveArguments: [String: Any] { ["tool_name": "Bash", "input": ["c
     let urlError = MCPServer(client: UtataneBridgeClient(send: { _ in throw URLError(.cannotConnectToHost) }))
     let urlResult = try await callApprove(urlError, arguments: approveArguments)
     #expect(urlResult.decision?["behavior"] as? String == "deny")
+    #expect((urlResult.decision?["message"] as? String)?.contains("接続できない") == true)
+    let other = MCPServer(client: UtataneBridgeClient(send: { _ in throw CocoaError(.fileReadUnknown) }))
+    let otherResult = try await callApprove(other, arguments: approveArguments)
+    #expect(otherResult.decision?["behavior"] as? String == "deny")
+    #expect((otherResult.decision?["message"] as? String)?.contains("失敗") == true)
 }
 
 @Test func `approve tool requires tool_name`() async throws {
@@ -111,7 +116,8 @@ private var approveArguments: [String: Any] { ["tool_name": "Bash", "input": ["c
 
 @Test func `approve request uses ApproveTool command, 60 second timeout and encoded payload`() async throws {
     let server = approveServer(body: "SSTP/1.4 200 OK\r\nScript: {\"allow\":true}\r\n\r\n", inspect: { request in
-        #expect(request.timeoutInterval == 60)
+        #expect(request.timeoutInterval == UtataneBridgeClient.approvalTimeout)
+        #expect(UtataneBridgeClient.approvalTimeout == 60)
         let body = request.httpBody.flatMap { String(data: $0, encoding: .utf8) } ?? ""
         #expect(body.contains("Command: ApproveTool\r\n"))
         #expect(!body.contains("\r\nCommand: Reload"))
@@ -133,4 +139,25 @@ private var approveArguments: [String: Any] { ["tool_name": "Bash", "input": ["c
         return (Data("SSTP/1.4 200 OK\r\nScript: []\r\n\r\n".utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
     })
     _ = try await client.command("GetActiveGhostList")
+}
+
+@Test func `command applies the requested timeout to the request`() async throws {
+    let client = UtataneBridgeClient(send: { request in
+        #expect(request.timeoutInterval == 7)
+        return (Data("SSTP/1.4 200 OK\r\nScript: []\r\n\r\n".utf8), HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
+    })
+    _ = try await client.command("GetActiveGhostList", timeout: 7)
+}
+
+@Test func `approve denies malformed input but accepts missing input`() async throws {
+    let allowBody = "SSTP/1.4 200 OK\r\nScript: {\"allow\":true}\r\n\r\n"
+    for badInput in [["a"], "ls", 3] as [Any] {
+        let result = try await callApprove(approveServer(body: allowBody), arguments: ["tool_name": "Bash", "input": badInput])
+        #expect(result.response["error"] == nil)
+        #expect(result.decision?["behavior"] as? String == "deny")
+        #expect((result.decision?["message"] as? String)?.contains("不正") == true)
+    }
+    let missing = try await callApprove(approveServer(body: allowBody), arguments: ["tool_name": "Bash"])
+    #expect(missing.decision?["behavior"] as? String == "allow")
+    #expect((missing.decision?["updatedInput"] as? [String: Any])?.isEmpty == true)
 }
