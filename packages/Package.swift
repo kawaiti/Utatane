@@ -17,6 +17,7 @@ let package = Package(
         .library(name: "UtataneRuntime", targets: ["UtataneRuntime"]),
         .library(name: "UtataneAI", targets: ["UtataneAI"]),
         .library(name: "UtataneRealtime", targets: ["UtataneRealtime"]),
+        .library(name: "UtataneClaudeCode", targets: ["UtataneClaudeCode"]),
         .library(name: "UtataneShiori", targets: ["UtataneShiori"]),
         .library(name: "UtataneMakoto", targets: ["UtataneMakoto"]),
         .library(name: "UtataneWindowsShiori", targets: ["UtataneWindowsShiori"]),
@@ -68,6 +69,10 @@ let package = Package(
         .target(
             name: "UtataneRealtime",
             path: "realtime/Sources"
+        ),
+        .target(
+            name: "UtataneClaudeCode",
+            path: "claude-code/Sources"
         ),
         .target(
             name: "UtataneGhostKit",
@@ -220,6 +225,11 @@ let package = Package(
             name: "UtataneRealtimeTests",
             dependencies: ["UtataneRealtime"],
             path: "realtime/Tests"
+        ),
+        .testTarget(
+            name: "UtataneClaudeCodeTests",
+            dependencies: ["UtataneClaudeCode"],
+            path: "claude-code/Tests"
         ),
         .testTarget(
             name: "UtataneGhostKitTests",

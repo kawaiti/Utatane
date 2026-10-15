@@ -63,6 +63,12 @@
           "help": true
         },
         {
+          "file": "Guide/Claude-Code.md",
+          "slug": "use/claude-code",
+          "title": "Claude Codeを操作する",
+          "help": true
+        },
+        {
           "file": "Guide/Storage.md",
           "slug": "use/storage",
           "title": "保存場所とバックアップ",
