@@ -8,7 +8,7 @@
 
 **Tech Stack:** Swift 6.2、SwiftUI/AppKit、Swift Testing（`@Test func \`name\`()` 形式）、Speech/AVFoundation（既存 `MacOSSpeechRecognizer`）、MCP（stdio JSON-RPC）。
 
-**Spec:** `docs/superpowers/specs/2026-10-14-claude-code-voice-interface-design.md`
+**Spec:** `Design/superpowers/specs/2026-10-14-claude-code-voice-interface-design.md`
 
 ## Global Constraints
 
