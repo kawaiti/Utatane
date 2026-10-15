@@ -145,7 +145,7 @@ public actor ClaudeCodeSession {
             let timeout = approvalTimeout
             // Inherits the actor's isolation, so the completion runs on the actor.
             pendingApproval?.timeout = Task {
-                guard (try? await Task.sleep(for: timeout)) != nil else { return }
+                guard await (try? Task.sleep(for: timeout)) != nil else { return }
                 self.completeApproval(id: id, with: .deny(reason: Self.timedOutReason))
             }
         }

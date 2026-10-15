@@ -24,7 +24,9 @@ public struct VoiceCommandRouter: Sendable {
         let normalized = String(String.UnicodeScalarView(
             trimmed.unicodeScalars.filter { !Self.punctuation.contains($0) }
         )).trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        if normalized.isEmpty { return .ignore }
+        if normalized.isEmpty {
+            return .ignore
+        }
 
         // Still a whole-phrase match: only the polite ending is removed, and「ください」alone stays as is.
         let base = Self.politeSuffixes.first { normalized.hasSuffix($0) && normalized.count > $0.count }
@@ -32,13 +34,23 @@ public struct VoiceCommandRouter: Sendable {
 
         let awaitingAnswer = state == .awaitingApproval || awaitingReadback
         if awaitingAnswer {
-            if Self.approveWords.contains(normalized) { return .approve }
-            if Self.denyWords.contains(base) { return .deny }
-            if Self.interruptWords.contains(base) { return .interrupt }
+            if Self.approveWords.contains(normalized) {
+                return .approve
+            }
+            if Self.denyWords.contains(base) {
+                return .deny
+            }
+            if Self.interruptWords.contains(base) {
+                return .interrupt
+            }
             return .ignore
         }
-        if Self.interruptWords.contains(base) || base == "やめて" { return .interrupt }
-        if state == .running { return .busy }
+        if Self.interruptWords.contains(base) || base == "やめて" {
+            return .interrupt
+        }
+        if state == .running {
+            return .busy
+        }
         return .instruction(trimmed)
     }
 }

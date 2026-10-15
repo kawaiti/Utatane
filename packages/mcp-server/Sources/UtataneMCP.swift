@@ -108,11 +108,13 @@ struct MCPServer: Sendable {
             let reply = try await client.command("ApproveTool", payload: payload, timeout: UtataneBridgeClient.approvalTimeout)
             if let data = reply.data(using: .utf8),
                let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-               let allow = object["allow"] as? NSNumber, CFGetTypeID(allow) == CFBooleanGetTypeID(), allow.boolValue {
+               let allow = object["allow"] as? NSNumber, CFGetTypeID(allow) == CFBooleanGetTypeID(), allow.boolValue
+            {
                 decision = ["behavior": "allow", "updatedInput": input]
             } else if let data = reply.data(using: .utf8),
                       let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                      (object["allow"] as? NSNumber).map({ CFGetTypeID($0) == CFBooleanGetTypeID() }) == true {
+                      (object["allow"] as? NSNumber).map({ CFGetTypeID($0) == CFBooleanGetTypeID() }) == true
+            {
                 let reason = (object["reason"] as? String).flatMap { $0.isEmpty ? nil : $0 }
                 decision = ["behavior": "deny", "message": reason ?? "ユーザーが拒否した"]
             } else {

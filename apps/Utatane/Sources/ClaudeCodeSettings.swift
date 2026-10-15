@@ -7,7 +7,9 @@ enum ClaudeCodeHotkey: String, CaseIterable, Identifiable {
     case rightOption
     case fn
 
-    var id: String { rawValue }
+    var id: String {
+        rawValue
+    }
 
     var displayName: LocalizedStringKey {
         switch self {

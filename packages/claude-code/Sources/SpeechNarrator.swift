@@ -11,20 +11,32 @@ public enum SpeechNarrator {
     public static func narrate(_ event: ClaudeCodeEvent) -> String? {
         switch event {
         case let .toolUse(_, name, _):
-            if readingTools.contains(name) { return "ファイルを読んでいます" }
-            if name == "Bash" { return "コマンドを実行しています" }
-            if editingTools.contains(name) { return "ファイルを書き換えています" }
+            if readingTools.contains(name) {
+                return "ファイルを読んでいます"
+            }
+            if name == "Bash" {
+                return "コマンドを実行しています"
+            }
+            if editingTools.contains(name) {
+                return "ファイルを書き換えています"
+            }
             return nil
         case let .finished(result, isError, _):
             let trimmed = result.trimmingCharacters(in: .whitespacesAndNewlines)
             if isError {
-                if trimmed.isEmpty { return "うまくいきませんでした" }
-                if let message = ClaudeCodeFailureText.spokenMessage(for: trimmed) { return message }
+                if trimmed.isEmpty {
+                    return "うまくいきませんでした"
+                }
+                if let message = ClaudeCodeFailureText.spokenMessage(for: trimmed) {
+                    return message
+                }
                 // Only the first line is spoken; the rest (such as a standard error tail) stays in the transcript.
                 let firstLine = trimmed.split(whereSeparator: \.isNewline).first.map(String.init) ?? trimmed
                 return "うまくいきませんでした: " + String(firstLine.prefix(errorLimit))
             }
-            if trimmed.isEmpty { return "終わりました" }
+            if trimmed.isEmpty {
+                return "終わりました"
+            }
             return trimmed.count > resultLimit ? String(trimmed.prefix(resultLimit)) + "…" : trimmed
         case .sessionStarted, .assistantText, .toolResult:
             return nil

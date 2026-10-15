@@ -58,7 +58,9 @@ private func callApprove(_ server: MCPServer, arguments: [String: Any]) async th
     return (response, decision)
 }
 
-private var approveArguments: [String: Any] { ["tool_name": "Bash", "input": ["command": "ls -la"], "tool_use_id": "toolu_1"] }
+private var approveArguments: [String: Any] {
+    ["tool_name": "Bash", "input": ["command": "ls -la"], "tool_use_id": "toolu_1"]
+}
 
 @Test func `approve tool maps bridge allow and deny responses to permission JSON`() async throws {
     let allow = try await callApprove(approveServer(body: "SSTP/1.4 200 OK\r\nScript: {\"allow\":true}\r\n\r\n"), arguments: approveArguments)

@@ -50,7 +50,7 @@ final class ClaudeCodeController {
             self?.handleUtterance(text, boundTo: boundApproval)
         }
         voiceInput.onNothingHeard = { [weak self] in
-            guard let self, self.acceptsVoice else { return }
+            guard let self, acceptsVoice else { return }
             self.speak("聞き取れませんでした")
         }
         voiceInput.onListeningChange = { [weak self] listening in self?.transcript.isListening = listening }

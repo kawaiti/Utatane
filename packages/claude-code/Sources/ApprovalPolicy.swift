@@ -22,7 +22,9 @@ public enum ApprovalPolicy {
     public static func isDangerous(toolName: String, command: String?) -> Bool {
         guard toolName == "Bash", let command else { return false }
         let whole = NSRange(command.startIndex..., in: command)
-        if pipeIntoShell.firstMatch(in: command, range: whole) != nil { return true }
+        if pipeIntoShell.firstMatch(in: command, range: whole) != nil {
+            return true
+        }
         return segments(of: command).contains(where: isDangerousSegment)
     }
 
@@ -37,7 +39,7 @@ public enum ApprovalPolicy {
     private static let wrapperOptionsWithValue: [String: Set<String>] = [
         "env": ["-u", "-C", "-S", "-P", "--unset", "--chdir"],
         "exec": ["-a"],
-        "time": ["-o", "--output", "-f", "--format"],
+        "time": ["-o", "--output", "-f", "--format"]
     ]
     /// `env -S` splits its argument into a command line, which hides the command like `sh -c`.
     private static let splitStringOptions: Set<String> = ["-S", "--split-string"]
@@ -63,19 +65,27 @@ public enum ApprovalPolicy {
                 tokens = tokens.dropFirst()
                 let valueOptions = wrapperOptionsWithValue[word] ?? []
                 while let option = tokens.first, option.hasPrefix("-") {
-                    if splitStringOptions.contains(option) || option.hasPrefix("--split-string=") { return true }
+                    if splitStringOptions.contains(option) || option.hasPrefix("--split-string=") {
+                        return true
+                    }
                     tokens = tokens.dropFirst()
-                    if uncertainFrom == nil { uncertainFrom = tokens.startIndex }
-                    if valueOptions.contains(option) { tokens = tokens.dropFirst() }
+                    if uncertainFrom == nil {
+                        uncertainFrom = tokens.startIndex
+                    }
+                    if valueOptions.contains(option) {
+                        tokens = tokens.dropFirst()
+                    }
                 }
             } else {
                 break
             }
         }
-        if isDangerousCommand(tokens) { return true }
+        if isDangerousCommand(tokens) {
+            return true
+        }
         // Fallback: the option tables may be wrong for this wrapper, so treat every later token as a possible command word.
         guard let start = uncertainFrom else { return false }
-        return (start..<allTokens.endIndex).contains { isDangerousCommand(allTokens[$0...]) }
+        return (start ..< allTokens.endIndex).contains { isDangerousCommand(allTokens[$0...]) }
     }
 
     /// Checks `tokens` with the first token as the command word.
@@ -110,7 +120,9 @@ public enum ApprovalPolicy {
         var rest = args[...]
         while let arg = rest.first, arg.hasPrefix("-") {
             rest = rest.dropFirst()
-            if arg == "-C" || arg == "-c" { rest = rest.dropFirst() }
+            if arg == "-C" || arg == "-c" {
+                rest = rest.dropFirst()
+            }
         }
         guard let subcommand = rest.first else { return false }
         switch subcommand {

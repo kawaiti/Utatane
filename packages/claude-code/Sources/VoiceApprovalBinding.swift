@@ -25,7 +25,9 @@ public enum VoiceApprovalBinding {
         }
         guard boundID != nil || currentID != nil else { return .none }
         guard let currentID, boundID == currentID else { return .ignoreStale }
-        if allow, currentIsDangerous { return .refuseDangerous }
+        if allow, currentIsDangerous {
+            return .refuseDangerous
+        }
         return .resolve(currentID, allow: allow)
     }
 }

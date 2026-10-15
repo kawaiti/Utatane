@@ -97,13 +97,17 @@ private func nextEvent(
     where predicate: (ClaudeCodeEvent) -> Bool
 ) async -> ClaudeCodeEvent? {
     while let event = await iterator.next() {
-        if predicate(event) { return event }
+        if predicate(event) {
+            return event
+        }
     }
     return nil
 }
 
 private func isFinished(_ event: ClaudeCodeEvent) -> Bool {
-    if case .finished = event { return true }
+    if case .finished = event {
+        return true
+    }
     return false
 }
 

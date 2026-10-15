@@ -64,11 +64,11 @@ final class ClaudeCodeVoiceInput {
         self.recognizer = recognizer
         onListeningChange?(true)
         holdCapTask = Task { [weak self] in
-            guard (try? await Task.sleep(for: PushToTalkHold.maximumDuration)) != nil else { return }
-            guard let self, self.hold.isHolding(token) else { return }
+            guard await (try? Task.sleep(for: PushToTalkHold.maximumDuration)) != nil else { return }
+            guard let self, hold.isHolding(token) else { return }
             // The key-up was probably lost; forget the monitor's held key so the next press works.
-            self.monitor?.resetHold()
-            self.endListening()
+            monitor?.resetHold()
+            endListening()
         }
         isStarting = true
         Task {
@@ -134,10 +134,10 @@ final class ClaudeCodeVoiceInput {
             self?.hold.append(text)
         }
         recognizer.onError = { [weak self] _ in
-            guard let self, self.hold.isActive else { return }
-            self.cancelHold()
-            self.onListeningChange?(false)
-            self.onFailure?("音声認識でエラーが起きました")
+            guard let self, hold.isActive else { return }
+            cancelHold()
+            onListeningChange?(false)
+            onFailure?("音声認識でエラーが起きました")
         }
         return recognizer
     }

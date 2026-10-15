@@ -13,7 +13,8 @@ public enum ClaudeCodeEventParser {
     public static func parse(line: String) -> [ClaudeCodeEvent] {
         guard let data = line.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let type = object["type"] as? String else {
+              let type = object["type"] as? String
+        else {
             return []
         }
         switch type {

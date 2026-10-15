@@ -82,7 +82,9 @@ final class ClaudeCodeHotkeyMonitor {
         case .controlOptionSpace:
             guard key.keyCode == Self.spaceKeyCode else { return false }
             if key.type == .keyDown {
-                if isKeyDown { return true }
+                if isKeyDown {
+                    return true
+                }
                 let flags = key.modifierFlags.intersection(.deviceIndependentFlagsMask)
                 guard flags.contains([.control, .option]), !flags.contains(.command), !key.isRepeat else { return false }
                 isKeyDown = true
@@ -129,11 +131,11 @@ final class ClaudeCodeHotkeyMonitor {
     private func beginLongPress() {
         longPressTask?.cancel()
         longPressTask = Task { [weak self] in
-            guard (try? await Task.sleep(for: Self.longPressDelay)) != nil else { return }
-            guard let self, self.isKeyDown, !self.isActive else { return }
-            self.longPressTask = nil
-            self.isActive = true
-            self.onPress?()
+            guard await (try? Task.sleep(for: Self.longPressDelay)) != nil else { return }
+            guard let self, isKeyDown, !self.isActive else { return }
+            longPressTask = nil
+            isActive = true
+            onPress?()
         }
     }
 

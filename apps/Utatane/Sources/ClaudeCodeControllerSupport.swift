@@ -21,7 +21,7 @@ enum ClaudeCodeApprovalText {
     }
 
     static func prompt(for request: ClaudeCodeApprovalRequest) -> String {
-        let question: String = if let command = request.command {
+        let question = if let command = request.command {
             "「\(shortened(command, to: 40))」を実行してよいですか?"
         } else if let filePath = request.filePath {
             "\((filePath as NSString).lastPathComponent)を書き換えてよいですか?"
