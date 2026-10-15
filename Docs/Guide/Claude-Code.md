@@ -91,12 +91,12 @@ Claude Codeがファイルの書き換えやコマンドの実行をしようと
 
 危険と判定するのは、おおむね次のようなコマンドです。
 
-- 削除や上書き: `rm`、`dd`、`shred`、`truncate`、`unlink`、`mkfs`や`newfs_apfs`などのフォーマット、`diskutil`の消去やパーティション操作、再帰的な`chmod`・`chown`・`chgrp`
-- 権限やシステムの操作: `sudo`、`doas`、`shutdown`、`reboot`、`halt`、`launchctl unload`・`remove`・`bootout`、`killall`、`pkill`、すべてのプロセスへの`kill -1`
-- 取り消しにくいGit操作: `git push`、`git clean`、`git reset --hard`、`git branch -D`、`git checkout -- .`のように変更を捨てる`git checkout`、`git restore`（`--staged`だけで取り消す場合を除く）、`git stash drop`・`clear`
+- 削除や上書き: `rm`、`dd`、`shred`、`truncate`、`unlink`、`mkfs`や`newfs_apfs`などのフォーマット、`diskutil`の消去やパーティション操作、再帰的な`chmod`・`chown`・`chgrp`、`rimraf`（`npx rimraf`を含む）、`rsync --delete`や`--remove-source-files`
+- 権限やシステムの操作: `sudo`、`doas`、`shutdown`、`reboot`、`halt`、`launchctl unload`・`remove`・`bootout`、`killall`、`pkill`、すべてのプロセスへの`kill -1`、`crontab -r`、`defaults delete`、`security delete-…`、`tmutil delete`や`deletelocalsnapshots`
+- 取り消しにくいGit操作: `git push`、`git clean`、`git reset --hard`、`git branch -D`、`git checkout -- .`のように変更を捨てる`git checkout`、`git restore`（`--staged`だけで取り消す場合を除く）、`git stash drop`・`clear`、`git rm -r`（`--cached`を除く）、`git reflog expire`、`git gc --prune`、`git filter-branch`、`git update-ref -d`
 - 文字列や入力から別のコマンドを実行する書き方: `bash -c`のようにシェルへ文字列を渡す書き方、`bash <<< …`や`sh <<EOF`のようなヒアストリングやヒアドキュメント、`| sh`・`| /bin/bash`・`| env bash`のようなシェルへのパイプ、`eval`、`xargs`、`env -S`、`find`の`-delete`や`-exec`
 
-`\rm`や`"rm"`のように引用符やバックスラッシュを付けた書き方、`/bin/rm`のようなパス付きの書き方、`FOO=1 rm`のような変数の指定、`env`・`nice`・`timeout`・`nohup`・`time`・`xcrun`などの前置きも見分けます。
+`\rm`や`"rm"`のように引用符やバックスラッシュを付けた書き方、`/bin/rm`のようなパス付きの書き方、`FOO=1 rm`のような変数の指定、`env`・`nice`・`timeout`・`nohup`・`time`・`xcrun`などの前置きも見分けます。`if … then`・`for … do`・`while`の中、`( … )`や`{ …; }`でまとめた中、`!`の後ろ、`$( … )`の中にあるコマンドも判定します。
 
 この判定は、コマンドの文字列から推測する簡易な仕組み（ヒューリスティック）です。実行を隔離する仕組みではありません。
 
@@ -105,15 +105,17 @@ Claude Codeがファイルの書き換えやコマンドの実行をしようと
 - `bash -c ls`のように、無害な内容をシェルへ文字列で渡す書き方
 - `xargs`と`eval`のすべての使い方、`find … -exec`
 - `git checkout -- ファイル名`のように、1つのファイルの変更を捨てる操作
-- 引用符の中の`;`、`&`、`|`で区切られた部分（`echo "a; rm"`など）や、前置きのあとの引数（`timeout 5 echo rm`など）
+- 引用符の中の`;`、`&`、`|`、`(`、`)`で区切られた部分（`echo "a; rm"`や`echo "(rm)"`など）や、前置きのあとの引数（`timeout 5 echo rm`など）
 
 反対に、次のような書き方は検出できません。危険と判定されなかったコマンドも、許可する前に中身をよく読んでください。
 
-- `$(rm …)`やバッククォートのようなコマンド置換
-- `python -c`、`perl -e`、`node -e`のように、ほかの言語へコードを渡す書き方
+- バッククォートによるコマンド置換（`` `rm x` ``）
+- 行末の`\`で行をつないだ書き方（`r\`の次の行に`m -rf x`）、`$'\x72m'`のような`$'…'`形式の引用、`{rm,-rf,x}`のようなブレース展開
+- `> ファイル名`によるファイルの上書き（中身が消えます）
+- `python -c`、`perl -e`、`node -e`、`osascript`、`awk`の`system()`のように、ほかの言語やプログラムへコードを渡す書き方
 - `$CMD`のように変数から組み立てたコマンド
 - 同じコマンド内で定義したエイリアスや関数
-- 上に挙げていない前置きや、ほかのプログラムの中から実行されるコマンド
+- `-r`を付けない`git rm`など、上に挙げていない削除や変更の操作、上に挙げていない前置き
 
 ### 確認なしで実行される場合
 
