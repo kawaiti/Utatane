@@ -82,10 +82,55 @@ struct MCPServer: Sendable {
                 script: script
             )
             text = "SakuraScriptを実行した。"
+        case "approve":
+            guard let toolName = arguments["tool_name"] as? String, !toolName.isEmpty else {
+                throw MCPError.invalidArguments
+            }
+            text = await approve(toolName: toolName, input: arguments["input"], toolUseID: arguments["tool_use_id"] as? String ?? "")
         default:
             throw MCPError.unknownTool(name)
         }
         return ["content": [["type": "text", "text": text]]]
+    }
+
+    /// Claude Code の permission-prompt-tool 用。許可の明示的な確認が取れない場合はすべて deny にする（fail closed）。
+    private func approve(toolName: String, input rawInput: Any?, toolUseID: String) async -> String {
+        var input: [String: Any] = [:]
+        if let rawInput {
+            guard let object = rawInput as? [String: Any] else {
+                return "{\"behavior\":\"deny\",\"message\":\"入力の形式が不正なため拒否した\"}"
+            }
+            input = object
+        }
+        let payload: [String: Any] = ["tool_name": toolName, "input": input, "tool_use_id": toolUseID]
+        let decision: [String: Any]
+        do {
+            let reply = try await client.command("ApproveTool", payload: payload, timeout: UtataneBridgeClient.approvalTimeout)
+            if let data = reply.data(using: .utf8),
+               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let allow = object["allow"] as? NSNumber, CFGetTypeID(allow) == CFBooleanGetTypeID(), allow.boolValue
+            {
+                decision = ["behavior": "allow", "updatedInput": input]
+            } else if let data = reply.data(using: .utf8),
+                      let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                      (object["allow"] as? NSNumber).map({ CFGetTypeID($0) == CFBooleanGetTypeID() }) == true
+            {
+                let reason = (object["reason"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                decision = ["behavior": "deny", "message": reason ?? "ユーザーが拒否した"]
+            } else {
+                decision = ["behavior": "deny", "message": "Utatane の応答を解釈できないため拒否した"]
+            }
+        } catch MCPError.utataneUnavailable {
+            decision = ["behavior": "deny", "message": "Utataneに接続できないため拒否した"]
+        } catch is URLError {
+            decision = ["behavior": "deny", "message": "Utataneに接続できないため拒否した"]
+        } catch {
+            decision = ["behavior": "deny", "message": "Utatane への問い合わせに失敗したため拒否した"]
+        }
+        guard let data = try? JSONSerialization.data(withJSONObject: decision, options: [.sortedKeys]),
+              let text = String(data: data, encoding: .utf8)
+        else { return "{\"behavior\":\"deny\",\"message\":\"拒否した\"}" }
+        return text
     }
 
     private func error(id: Any, code: Int, message: String) -> [String: Any] {
@@ -121,6 +166,20 @@ struct MCPServer: Sendable {
                     "required": ["script"],
                     "additionalProperties": false
                 ]
+            ],
+            [
+                "name": "approve",
+                "description": "Claude Codeの権限確認をUtataneへ中継し、ユーザーの音声または画面操作で許可・拒否を決める。--permission-prompt-toolから呼ばれる。",
+                "inputSchema": [
+                    "type": "object",
+                    "properties": [
+                        "tool_name": ["type": "string", "description": "許可を求めているツール名"],
+                        "input": ["type": "object", "description": "そのツールへの入力"],
+                        "tool_use_id": ["type": "string", "description": "ツール呼び出しのID"]
+                    ],
+                    "required": ["tool_name"],
+                    "additionalProperties": false
+                ]
             ]
         ] + [
             tool("get_status", "起動中ゴーストの再生・入力欄・バルーンなどの現在状態を取得する。", properties: [:]),
@@ -141,9 +200,11 @@ struct MCPServer: Sendable {
 
 struct UtataneBridgeClient: Sendable {
     private let endpoint = URL(string: "http://127.0.0.1:9801/api/sstp/v1")!
+    /// アプリ側の承認タイムアウト(45秒)より長くする。
+    static let approvalTimeout: TimeInterval = 60
     var send: @Sendable (URLRequest) async throws -> (Data, URLResponse) = { try await URLSession.shared.data(for: $0) }
 
-    func command(_ command: String, ghostID: String? = nil, script: String? = nil, payload: [String: Any]? = nil) async throws -> String {
+    func command(_ command: String, ghostID: String? = nil, script: String? = nil, payload: [String: Any]? = nil, timeout: TimeInterval? = nil) async throws -> String {
         var lines = ["SEND SSTP/1.4", "Charset: UTF-8", "Sender: utatane-mcp", "Command: \(command)"]
         guard !command.contains("\r"), !command.contains("\n"), ghostID?.contains("\r") != true, ghostID?.contains("\n") != true else { throw MCPError.invalidArguments }
         if let payload {
@@ -160,6 +221,9 @@ struct UtataneBridgeClient: Sendable {
         request.httpMethod = "POST"
         request.setValue("text/plain; charset=UTF-8", forHTTPHeaderField: "Content-Type")
         request.httpBody = body
+        if let timeout {
+            request.timeoutInterval = timeout
+        }
         let (data, response) = try await send(request)
         guard (response as? HTTPURLResponse)?.statusCode == 200,
               let source = String(data: data, encoding: .utf8),
