@@ -8,8 +8,12 @@ public enum ApprovalPolicy {
     /// Flagged: `rm`, `sudo`, `dd`, `mkfs*`, recursive `chmod`, `git push|clean|reset --hard`, piping into a shell,
     /// `sh|bash|zsh|dash -c`, `eval`, any `xargs`, `env -S`, and `find` with `-delete|-exec|-execdir|-ok|-okdir`.
     /// Command words are compared with backslashes and quotes removed (`\rm`, `"rm"`, `'rm'`), after skipping
-    /// `NAME=value` assignments and the wrappers `env`, `command`, `nohup`, `time`, `exec` with their options
-    /// (including `env -u NAME`, `env -C dir`, `env -P path`, `exec -a name`).
+    /// `NAME=value` assignments and the wrappers `env`, `command`, `nohup`, `time`, `exec` with their options.
+    /// An option swallows the next token only if it takes a value for that particular wrapper
+    /// (`env -u|-C|-S|-P|--unset|--chdir`, `exec -a`, `time -o|--output|-f|--format`); `time -a`, `time -p` etc.
+    /// do not. Because the option tables cannot cover every implementation, once any wrapper option has been
+    /// skipped every later token is also checked as if it were the command word (`env -u FOO rm x` is flagged
+    /// even if `-u` took no value), which may cause false positives such as `env -i echo rm`.
     ///
     /// Known limits (not detected): command substitution such as `$(rm x)` or backticks, other interpreters
     /// (`python -c`, `perl -e`, `node -e`), aliases and functions defined earlier in the same command, and
@@ -28,8 +32,13 @@ public enum ApprovalPolicy {
     }
 
     private static let wrapperWords: Set<String> = ["env", "command", "nohup", "time", "exec"]
-    /// Wrapper options whose value is the next token.
-    private static let wrapperOptionsWithValue: Set<String> = ["-u", "--unset", "-C", "--chdir", "-P", "-a"]
+    /// Per wrapper, the options whose value is the next token (attached forms such as `--unset=NAME` take none).
+    /// `command` and `nohup` have no value-taking options.
+    private static let wrapperOptionsWithValue: [String: Set<String>] = [
+        "env": ["-u", "-C", "-S", "-P", "--unset", "--chdir"],
+        "exec": ["-a"],
+        "time": ["-o", "--output", "-f", "--format"],
+    ]
     /// `env -S` splits its argument into a command line, which hides the command like `sh -c`.
     private static let splitStringOptions: Set<String> = ["-S", "--split-string"]
     private static let shells: Set<String> = ["sh", "bash", "zsh", "dash"]
@@ -41,22 +50,36 @@ public enum ApprovalPolicy {
     }
 
     private static func isDangerousSegment(_ segment: String) -> Bool {
-        var tokens = segment.split(whereSeparator: \.isWhitespace).map { unquoted(String($0)) }.filter { !$0.isEmpty }[...]
+        let allTokens = segment.split(whereSeparator: \.isWhitespace).map { unquoted(String($0)) }.filter { !$0.isEmpty }
+        var tokens = allTokens[...]
+        // Index of the first token after the first wrapper option; from there on the command word is uncertain.
+        var uncertainFrom: Int?
         // Skip NAME=value assignments, wrapper words and options directly after a wrapper.
         while let token = tokens.first {
+            let word = (token as NSString).lastPathComponent
             if isAssignment(token) {
                 tokens = tokens.dropFirst()
-            } else if wrapperWords.contains((token as NSString).lastPathComponent) {
+            } else if wrapperWords.contains(word) {
                 tokens = tokens.dropFirst()
+                let valueOptions = wrapperOptionsWithValue[word] ?? []
                 while let option = tokens.first, option.hasPrefix("-") {
                     if splitStringOptions.contains(option) || option.hasPrefix("--split-string=") { return true }
                     tokens = tokens.dropFirst()
-                    if wrapperOptionsWithValue.contains(option) { tokens = tokens.dropFirst() }
+                    if uncertainFrom == nil { uncertainFrom = tokens.startIndex }
+                    if valueOptions.contains(option) { tokens = tokens.dropFirst() }
                 }
             } else {
                 break
             }
         }
+        if isDangerousCommand(tokens) { return true }
+        // Fallback: the option tables may be wrong for this wrapper, so treat every later token as a possible command word.
+        guard let start = uncertainFrom else { return false }
+        return (start..<allTokens.endIndex).contains { isDangerousCommand(allTokens[$0...]) }
+    }
+
+    /// Checks `tokens` with the first token as the command word.
+    private static func isDangerousCommand(_ tokens: ArraySlice<String>) -> Bool {
         guard let commandToken = tokens.first else { return false }
         let first = (commandToken as NSString).lastPathComponent
         let arguments = tokens.dropFirst()

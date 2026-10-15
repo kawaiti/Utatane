@@ -62,3 +62,15 @@ import Testing
         #expect(!ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
     }
 }
+
+@Test func `wrapper options only take a value for their own wrapper`() {
+    for command in [
+        "time -a rm -rf x", "command time -a rm -rf ~", "/usr/bin/time -a rm -rf x", "/usr/bin/time -o out.txt rm -rf x",
+        "time -p rm x", "nohup rm x", "env -i FOO=1 rm x", "env -u FOO rm x", "exec -a name rm -rf x", "time -a sudo ls"
+    ] {
+        #expect(ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
+    }
+    for command in ["time -a ls", "time ls -la", "env -u FOO ls", "exec -a name ls"] {
+        #expect(!ApprovalPolicy.isDangerous(toolName: "Bash", command: command), "\(command)")
+    }
+}
