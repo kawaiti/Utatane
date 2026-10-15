@@ -21,14 +21,19 @@ enum ClaudeCodeApprovalText {
     }
 
     static func prompt(for request: ClaudeCodeApprovalRequest) -> String {
-        let question = if let command = request.command {
+        if let command = request.command {
             "「\(shortened(command, to: 40))」を実行してよいですか?"
         } else if let filePath = request.filePath {
             "\((filePath as NSString).lastPathComponent)を書き換えてよいですか?"
         } else {
             "\(request.toolName)を実行してよいですか?"
         }
-        return request.isDangerous ? "危険な操作です。\(question)画面の許可ボタンで確認してください。" : question
+    }
+
+    /// The transcript line for a command the session blocked; the command is shortened to one line.
+    static func describeBlocked(toolName: String, command: String?) -> String {
+        let target = command.map { "\(toolName): \(shortened($0, to: 120))" } ?? toolName
+        return "危険なコマンドのため実行しませんでした: \(target)"
     }
 
     static func shortened(_ text: String, to limit: Int) -> String {

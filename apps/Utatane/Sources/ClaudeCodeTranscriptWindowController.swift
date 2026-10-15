@@ -11,6 +11,8 @@ struct ClaudeCodeTranscriptEntry: Identifiable, Equatable {
         case toolResult(isError: Bool)
         case result(isError: Bool)
         case approval
+        /// A dangerous command the session refused to run without asking.
+        case blocked
         case notice
     }
 
@@ -25,8 +27,6 @@ struct ClaudeCodeApprovalRequest: Identifiable, Equatable {
     let toolName: String
     let command: String?
     let filePath: String?
-    /// Dangerous requests can only be allowed with the on-screen button.
-    let isDangerous: Bool
     /// The session's id for this request, known once it is pending. The buttons resolve only this id.
     var approvalID: ClaudeCodeApprovalID?
 }
@@ -154,9 +154,11 @@ private struct ClaudeCodeTranscriptRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 8) {
-            Image(systemName: symbol)
-                .foregroundStyle(color)
-                .frame(width: 16)
+            if entry.kind == .blocked {
+                icon.help(Text("危険なコマンドのため実行しませんでした"))
+            } else {
+                icon
+            }
             Text(verbatim: entry.text)
                 .textSelection(.enabled)
                 .font(usesMonospace ? .system(.body, design: .monospaced) : .body)
@@ -165,15 +167,22 @@ private struct ClaudeCodeTranscriptRow: View {
         }
     }
 
+    private var icon: some View {
+        Image(systemName: symbol)
+            .foregroundStyle(color)
+            .frame(width: 16)
+    }
+
     private var isError: Bool {
         switch entry.kind {
         case let .toolResult(isError), let .result(isError): isError
+        case .blocked: true
         default: false
         }
     }
 
     private var usesMonospace: Bool {
-        entry.kind == .toolUse || entry.kind == .approval
+        entry.kind == .toolUse || entry.kind == .approval || entry.kind == .blocked
     }
 
     private var symbol: String {
@@ -185,6 +194,7 @@ private struct ClaudeCodeTranscriptRow: View {
         case .toolResult: "arrow.turn.down.right"
         case .result: "checkmark.circle"
         case .approval: "hand.raised"
+        case .blocked: "nosign"
         case .notice: "info.circle"
         }
     }
@@ -193,6 +203,7 @@ private struct ClaudeCodeTranscriptRow: View {
         switch entry.kind {
         case .instruction, .heard: .accentColor
         case .approval: .orange
+        case .blocked: .red
         default: .secondary
         }
     }
@@ -204,9 +215,8 @@ private struct ClaudeCodeApprovalView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Label("実行の許可を求めています", systemImage: request.isDangerous ? "exclamationmark.triangle.fill" : "hand.raised")
+            Label("実行の許可を求めています", systemImage: "hand.raised")
                 .font(.headline)
-                .foregroundStyle(request.isDangerous ? Color.red : Color.primary)
             Text(verbatim: request.toolName)
                 .font(.system(.body, design: .monospaced).bold())
             if let filePath = request.filePath {
@@ -222,11 +232,6 @@ private struct ClaudeCodeApprovalView: View {
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 .frame(maxHeight: 120)
-            }
-            if request.isDangerous {
-                Text("危険な操作のため、声では許可できません。内容を確認して許可ボタンを押してください。")
-                    .font(.callout)
-                    .foregroundStyle(.red)
             }
             HStack {
                 Spacer()

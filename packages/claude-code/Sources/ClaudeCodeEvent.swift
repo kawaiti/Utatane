@@ -6,6 +6,8 @@ public enum ClaudeCodeEvent: Equatable, Sendable {
     case toolUse(id: String, name: String, command: String?)
     case toolResult(id: String, isError: Bool)
     case finished(result: String, isError: Bool, sessionID: String?)
+    /// Emitted by the session (never parsed from stdout) when a dangerous command was denied without asking.
+    case commandBlocked(toolName: String, command: String?)
 }
 
 public enum ClaudeCodeEventParser {

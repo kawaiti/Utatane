@@ -3,8 +3,6 @@ public enum VoiceApprovalAction: Equatable, Sendable {
     /// No approval is involved; the command goes to the normal flow (readback and so on).
     case none
     case resolve(ClaudeCodeApprovalID, allow: Bool)
-    /// A spoken approve for a dangerous request; only the on-screen button may allow it.
-    case refuseDangerous
     /// The utterance began under a different approval, or under none; it must not decide the current one.
     case ignoreStale
 }
@@ -14,8 +12,7 @@ public enum VoiceApprovalBinding {
     public static func action(
         for command: VoiceCommand,
         listeningBoundTo boundID: ClaudeCodeApprovalID?,
-        current currentID: ClaudeCodeApprovalID?,
-        currentIsDangerous: Bool
+        current currentID: ClaudeCodeApprovalID?
     ) -> VoiceApprovalAction {
         let allow: Bool
         switch command {
@@ -25,9 +22,6 @@ public enum VoiceApprovalBinding {
         }
         guard boundID != nil || currentID != nil else { return .none }
         guard let currentID, boundID == currentID else { return .ignoreStale }
-        if allow, currentIsDangerous {
-            return .refuseDangerous
-        }
         return .resolve(currentID, allow: allow)
     }
 }

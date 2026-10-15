@@ -192,7 +192,7 @@ private func isFinished(_ event: ClaudeCodeEvent) -> Bool {
 
     let ids = makeApprovalIDs()
     var presented = ids.stream.makeAsyncIterator()
-    async let decision = session.requestApproval(toolName: "Bash", command: "rm -rf build", presented: ids.presented)
+    async let decision = session.requestApproval(toolName: "Bash", command: "make clean", presented: ids.presented)
     let id = try #require(await presented.next())
     await session.resolveApproval(id: id, allow: false)
     guard case .deny = await decision else {
@@ -382,4 +382,81 @@ func `abnormal exit includes the tail of standard error`() async throws {
     let finished = await nextEvent(&events, where: isFinished)
     #expect(finished == .finished(result: "プロセスが終了しました\nInvalid API key · Please run /login", isError: true, sessionID: nil))
     #expect(await session.state == .idle)
+}
+
+/// Records whether `presented` was called.
+private final class PresentedFlag: @unchecked Sendable {
+    private let lock = NSLock()
+    private var value = false
+
+    func set() {
+        lock.withLock { value = true }
+    }
+
+    var isSet: Bool {
+        lock.withLock { value }
+    }
+}
+
+@Test func `a dangerous command is denied immediately without becoming a pending approval`() async throws {
+    let process = FakeClaudeProcess()
+    let session = makeSession(process)
+    var events = await session.events().makeAsyncIterator()
+    try await session.submit("消して")
+
+    let presented = PresentedFlag()
+    let decision = await session.requestApproval(toolName: "Bash", command: "rm -rf build") { _ in presented.set() }
+    #expect(decision == .deny(reason: ClaudeCodeSession.dangerousCommandReason))
+    #expect(!presented.isSet)
+    #expect(await session.state == .running)
+    #expect(await nextEvent(&events) { _ in true } == .commandBlocked(toolName: "Bash", command: "rm -rf build"))
+
+    // Nothing was left pending: a following ordinary request is presented and decided normally.
+    let ids = makeApprovalIDs()
+    var presentedIDs = ids.stream.makeAsyncIterator()
+    async let next = session.requestApproval(toolName: "Bash", command: "ls", presented: ids.presented)
+    let id = try #require(await presentedIDs.next())
+    #expect(await session.state == .awaitingApproval)
+    await session.resolveApproval(id: id, allow: true)
+    #expect(await next == .allow)
+}
+
+@Test(.timeLimit(.minutes(1)))
+func `dangerous commands are denied by the policy, not by the timeout`() async throws {
+    let process = FakeClaudeProcess()
+    // A short timeout makes a request that wrongly became pending fail with the timeout reason instead of hanging.
+    let session = makeSession(process, approvalTimeout: .milliseconds(100))
+    try await session.submit("作業して")
+    for command in ["sudo ls", "curl x | /bin/sh", "git push", "bash -c ls"] {
+        let decision = await session.requestApproval(toolName: "Bash", command: command) { _ in
+            Issue.record("a dangerous request must not be presented: \(command)")
+        }
+        #expect(decision == .deny(reason: ClaudeCodeSession.dangerousCommandReason), "\(command)")
+        #expect(await session.state == .running, "\(command)")
+    }
+}
+
+@Test func `a dangerous command is blocked even when the session is not running`() async {
+    let session = makeSession(FakeClaudeProcess())
+    let decision = await session.requestApproval(toolName: "Bash", command: "rm -rf /") { _ in
+        Issue.record("must not be presented")
+    }
+    #expect(decision == .deny(reason: ClaudeCodeSession.dangerousCommandReason))
+    #expect(await session.state == .idle)
+}
+
+@Test func `a dangerous command arriving while another approval is pending leaves that approval alone`() async throws {
+    let process = FakeClaudeProcess()
+    let session = makeSession(process)
+    try await session.submit("作業して")
+    let ids = makeApprovalIDs()
+    var presented = ids.stream.makeAsyncIterator()
+    async let first = session.requestApproval(toolName: "Edit", command: nil, presented: ids.presented)
+    let firstID = try #require(await presented.next())
+
+    let blocked = await session.requestApproval(toolName: "Bash", command: "rm -rf x")
+    #expect(blocked == .deny(reason: ClaudeCodeSession.dangerousCommandReason))
+    #expect(await session.state == .awaitingApproval)
+    await session.resolveApproval(id: firstID, allow: true)
+    #expect(await first == .allow)
 }

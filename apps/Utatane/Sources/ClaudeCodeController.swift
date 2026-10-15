@@ -134,14 +134,11 @@ final class ClaudeCodeController {
         let request = ClaudeCodeApprovalRequest(
             toolName: toolName,
             command: command,
-            filePath: (input["file_path"] as? String) ?? (input["notebook_path"] as? String),
-            isDangerous: ApprovalPolicy.isDangerous(toolName: toolName, command: command)
+            filePath: (input["file_path"] as? String) ?? (input["notebook_path"] as? String)
         )
+        // Reserved before suspending so a concurrent request is refused; shown only once the session presents it.
+        // A dangerous command is denied by the session without being presented and is reported as `.commandBlocked`.
         currentApproval = (request, session)
-        transcript.pendingApproval = request
-        transcript.append(.approval, ClaudeCodeApprovalText.describe(request))
-        showTranscript()
-        speak(ClaudeCodeApprovalText.prompt(for: request))
 
         let requestID = request.id
         let decision = await session.requestApproval(toolName: toolName, command: command) { [weak self] approvalID in
@@ -156,18 +153,24 @@ final class ClaudeCodeController {
             transcript.append(.approval, "許可しました")
             return ClaudeCodeApprovalText.response(allow: true, reason: nil)
         case let .deny(reason):
-            transcript.append(.approval, "拒否しました: \(reason)")
+            // A blocked command already has its own transcript line from `.commandBlocked`.
+            if reason != ClaudeCodeSession.dangerousCommandReason {
+                transcript.append(.approval, "拒否しました: \(reason)")
+            }
             return ClaudeCodeApprovalText.response(allow: false, reason: reason)
         }
     }
 
-    /// Records the session's id for the request on screen; until then its buttons stay disabled.
+    /// Shows the request the session has made pending, with its id, and asks the user.
     private func approvalPresented(requestID: UUID, approvalID: ClaudeCodeApprovalID) {
         guard let current = currentApproval, current.request.id == requestID else { return }
         var request = current.request
         request.approvalID = approvalID
         currentApproval = (request, current.session)
         transcript.pendingApproval = request
+        transcript.append(.approval, ClaudeCodeApprovalText.describe(request))
+        showTranscript()
+        speak(ClaudeCodeApprovalText.prompt(for: request))
     }
 
     /// Resolves only the approval `id`, and only while it is the one on screen; anything else is ignored.
@@ -219,18 +222,11 @@ final class ClaudeCodeController {
         if current != nil, current?.approvalID == nil, answer == .approve || answer == .deny {
             return true // The request is not registered yet; an answer cannot be bound to it.
         }
-        switch VoiceApprovalBinding.action(
-            for: answer,
-            listeningBoundTo: boundApproval,
-            current: current?.approvalID,
-            currentIsDangerous: current?.isDangerous ?? false
-        ) {
+        switch VoiceApprovalBinding.action(for: answer, listeningBoundTo: boundApproval, current: current?.approvalID) {
         case .none:
             return false
         case let .resolve(id, allow):
             resolveApproval(id, allow: allow)
-        case .refuseDangerous:
-            speak("危険な操作なので、画面の許可ボタンで確認してください")
         case .ignoreStale:
             transcript.append(.notice, "前の確認への返事として聞き取ったため、使いませんでした")
         }
@@ -382,6 +378,9 @@ final class ClaudeCodeController {
             transcript.append(.toolUse, command.map { "\(name): \($0)" } ?? name)
         case let .toolResult(_, isError):
             transcript.append(.toolResult(isError: isError), isError ? "ツールがエラーを返しました" : "ツールが完了しました")
+        case let .commandBlocked(toolName, command):
+            transcript.append(.blocked, ClaudeCodeApprovalText.describeBlocked(toolName: toolName, command: command))
+            showTranscript()
         case let .finished(result, isError, sessionID):
             if let sessionID {
                 settings.setSessionID(sessionID, forWorkingDirectory: workingDirectory)

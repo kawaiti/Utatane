@@ -63,3 +63,7 @@ import Testing
     #expect(SpeechNarrator.narrate(event) == "うまくいきませんでした: やり取りの回数の上限に達しました")
     #expect(SpeechNarrator.narrate(.finished(result: "  ", isError: true, sessionID: nil)) == "うまくいきませんでした")
 }
+
+@Test func `a blocked command is narrated as not executable`() {
+    #expect(SpeechNarrator.narrate(.commandBlocked(toolName: "Bash", command: "rm -rf x")) == "危険なコマンドなので実行できません")
+}

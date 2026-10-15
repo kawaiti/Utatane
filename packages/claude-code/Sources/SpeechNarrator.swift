@@ -38,6 +38,8 @@ public enum SpeechNarrator {
                 return "終わりました"
             }
             return trimmed.count > resultLimit ? String(trimmed.prefix(resultLimit)) + "…" : trimmed
+        case .commandBlocked:
+            return "危険なコマンドなので実行できません"
         case .sessionStarted, .assistantText, .toolResult:
             return nil
         }

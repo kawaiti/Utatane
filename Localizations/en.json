@@ -641,7 +641,7 @@
   "Claude Codeへの指示" : "Instruction for Claude Code",
   "中断" : "Interrupt",
   "実行の許可を求めています" : "Requesting permission to run",
-  "危険な操作のため、声では許可できません。内容を確認して許可ボタンを押してください。" : "This is a dangerous operation and cannot be allowed by voice. Review it and press Allow.",
+  "危険なコマンドのため実行しませんでした" : "Not run because the command is dangerous",
   "拒否" : "Deny",
   "許可" : "Allow",
   "新しいセッション" : "New Session",

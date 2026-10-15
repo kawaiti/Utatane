@@ -52,6 +52,8 @@ public actor ClaudeCodeSession {
     static let timedOutReason = "承認がタイムアウトしました"
     static let interruptedReason = "中断されました"
     static let notRunningReason = "実行中の指示がないため拒否しました"
+    /// The reason returned for every command `ApprovalPolicy` judges dangerous.
+    public static let dangerousCommandReason = "危険なコマンドのため実行できません"
 
     private struct PendingApproval {
         let id: ClaudeCodeApprovalID
@@ -127,13 +129,21 @@ public actor ClaudeCodeSession {
 
     /// Suspends until the user decides, the timeout elapses (deny), or the session is interrupted (deny).
     ///
+    /// A command `ApprovalPolicy` judges dangerous is denied at once with `dangerousCommandReason` and reported
+    /// as `.commandBlocked`; it never becomes pending, so no button, voice answer or timeout can allow it.
     /// `presented` receives the request's id once it is pending; only `resolveApproval(id:allow:)` with that id
-    /// can decide it. A request that is denied immediately (not running, another one pending) is never presented.
+    /// can decide it. A request that is denied immediately (dangerous, not running, another one pending) is never
+    /// presented.
     public func requestApproval(
         toolName: String,
         command: String?,
         presented: @escaping @Sendable (ClaudeCodeApprovalID) -> Void = { _ in }
     ) async -> ApprovalDecision {
+        // Checked before anything else, so a dangerous request leaves the state and any pending approval untouched.
+        if ApprovalPolicy.isDangerous(toolName: toolName, command: command) {
+            eventContinuation.yield(.commandBlocked(toolName: toolName, command: command))
+            return .deny(reason: Self.dangerousCommandReason)
+        }
         guard state == .running, pendingApproval == nil else {
             return .deny(reason: Self.notRunningReason)
         }
@@ -199,7 +209,7 @@ public actor ClaudeCodeSession {
                 completeApproval(id: pendingApproval.id, with: .deny(reason: Self.processEndedMessage))
             }
             state = .idle
-        case .assistantText, .toolUse, .toolResult:
+        case .assistantText, .toolUse, .toolResult, .commandBlocked:
             break
         }
         eventContinuation.yield(event)
