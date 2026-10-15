@@ -653,21 +653,39 @@ pre code { padding: 0; }
 <ul>
 <li>読み取り専用のツール（<code>Read</code>、<code>Glob</code>、<code>Grep</code>、<code>LS</code>）は、確認なしで許可します。</li>
 <li>書き込みや<code>Bash</code>などは、ウィンドウの「許可」「拒否」ボタンか、声の「はい」「いいえ」で答えます。</li>
-<li><code>rm</code>、<code>sudo</code>、<code>dd</code>、<code>mkfs</code>、<code>git push</code>、<code>git clean</code>、<code>git reset --hard</code>、再帰的な<code>chmod</code>、<code>| sh</code>のようなシェルへのパイプ、<code>bash -c</code>のようにシェルへ文字列を渡す書き方、<code>eval</code>、<code>xargs</code>、<code>find</code>の<code>-delete</code>や<code>-exec</code>などは危険な操作として扱います。<code>\rm</code>や<code>&quot;rm&quot;</code>のように引用符やバックスラッシュを付けた書き方、<code>env -u NAME rm</code>のような前置きも見分けます。表示を赤くし、声の「はい」では許可できません。ウィンドウの「許可」ボタンだけで許可できます。「いいえ」は声でも通ります。</li>
+<li>危険なコマンドは、許可を求めずにその場で拒否します。許可を求める表示は出ず、ボタンでも声でも許可できません。詳しくは次の「危険なコマンド」を参照してください。</li>
 <li>45秒以内に答えなかった場合は、拒否として扱います。中断した場合も拒否です。</li>
 <li>読み取り専用のツールは、作業ディレクトリの外にあるファイルも確認なしで読めます。</li>
 <li>ホットキーを押している最中に許可の表示が出た場合、そのときの発話では答えられません。いったん離し、もう一度押して話してください。前の確認に対する返事が新しい確認へ届かないようにするための動作です。</li>
 </ul>
-<h4 id="use-claude-code-注意">注意</h4>
-<p>危険な操作の判定は、安全のための補助です。実行を隔離する仕組みではありません。次のような書き方は検出できないため、コマンドの中身をよく読んでから許可してください。</p>
+<h4 id="use-claude-code-危険なコマンド">危険なコマンド</h4>
+<p><code>Bash</code>で実行しようとしたコマンドが危険と判定されると、Utataneは許可を求めずにすぐ拒否し、Claude Codeには「危険なコマンドのため実行できません」と返します。ウィンドウに止めたコマンドを赤く表示し、ゴーストが「危険なコマンドなので実行できません」と話します。ボタン、声、待ち時間のどれを使っても許可はできません。どうしても必要な操作は、内容を確かめたうえでご自身のターミナルで実行してください。</p>
+<p>危険と判定するのは、おおむね次のようなコマンドです。</p>
+<ul>
+<li>削除や上書き: <code>rm</code>、<code>dd</code>、<code>shred</code>、<code>truncate</code>、<code>unlink</code>、<code>mkfs</code>や<code>newfs_apfs</code>などのフォーマット、<code>diskutil</code>の消去やパーティション操作、再帰的な<code>chmod</code>・<code>chown</code>・<code>chgrp</code></li>
+<li>権限やシステムの操作: <code>sudo</code>、<code>doas</code>、<code>shutdown</code>、<code>reboot</code>、<code>halt</code>、<code>launchctl unload</code>・<code>remove</code>・<code>bootout</code>、<code>killall</code>、<code>pkill</code>、すべてのプロセスへの<code>kill -1</code></li>
+<li>取り消しにくいGit操作: <code>git push</code>、<code>git clean</code>、<code>git reset --hard</code>、<code>git branch -D</code>、<code>git checkout -- .</code>のように変更を捨てる<code>git checkout</code>、<code>git restore</code>（<code>--staged</code>だけで取り消す場合を除く）、<code>git stash drop</code>・<code>clear</code></li>
+<li>文字列や入力から別のコマンドを実行する書き方: <code>bash -c</code>のようにシェルへ文字列を渡す書き方、<code>bash &lt;&lt;&lt; …</code>や<code>sh &lt;&lt;EOF</code>のようなヒアストリングやヒアドキュメント、<code>| sh</code>・<code>| /bin/bash</code>・<code>| env bash</code>のようなシェルへのパイプ、<code>eval</code>、<code>xargs</code>、<code>env -S</code>、<code>find</code>の<code>-delete</code>や<code>-exec</code></li>
+</ul>
+<p><code>\rm</code>や<code>&quot;rm&quot;</code>のように引用符やバックスラッシュを付けた書き方、<code>/bin/rm</code>のようなパス付きの書き方、<code>FOO=1 rm</code>のような変数の指定、<code>env</code>・<code>nice</code>・<code>timeout</code>・<code>nohup</code>・<code>time</code>・<code>xcrun</code>などの前置きも見分けます。</p>
+<p>この判定は、コマンドの文字列から推測する簡易な仕組み（ヒューリスティック）です。実行を隔離する仕組みではありません。</p>
+<p>判定は安全側に倒しているため、次のような実際には安全なコマンドも止めます。必要なら、別の書き方を指示するか、ご自身のターミナルで実行してください。</p>
+<ul>
+<li><code>bash -c ls</code>のように、無害な内容をシェルへ文字列で渡す書き方</li>
+<li><code>xargs</code>と<code>eval</code>のすべての使い方、<code>find … -exec</code></li>
+<li><code>git checkout -- ファイル名</code>のように、1つのファイルの変更を捨てる操作</li>
+<li>引用符の中の<code>;</code>、<code>&amp;</code>、<code>|</code>で区切られた部分（<code>echo &quot;a; rm&quot;</code>など）や、前置きのあとの引数（<code>timeout 5 echo rm</code>など）</li>
+</ul>
+<p>反対に、次のような書き方は検出できません。危険と判定されなかったコマンドも、許可する前に中身をよく読んでください。</p>
 <ul>
 <li><code>$(rm …)</code>やバッククォートのようなコマンド置換</li>
 <li><code>python -c</code>、<code>perl -e</code>、<code>node -e</code>のように、ほかの言語へコードを渡す書き方</li>
-<li>同じコマンド内で定義したエイリアスや関数、<code>$CMD</code>のように変数から組み立てたコマンド</li>
+<li><code>$CMD</code>のように変数から組み立てたコマンド</li>
+<li>同じコマンド内で定義したエイリアスや関数</li>
+<li>上に挙げていない前置きや、ほかのプログラムの中から実行されるコマンド</li>
 </ul>
-<p>反対に、引用符の中の<code>;</code>や<code>&amp;</code>などで、安全なコマンドを危険と判定することがあります。</p>
 <h4 id="use-claude-code-確認なしで実行される場合">確認なしで実行される場合</h4>
-<p>Utataneの承認は、Claude Codeが許可を求めたときにだけ働きます。次の場合は、Utataneの確認を経ずに実行されることがあります。</p>
+<p>Utataneの承認と危険なコマンドの拒否は、Claude Codeが許可を求めたときにだけ働きます。次の場合は、Utataneの確認を経ずに実行されることがあります。危険と判定されるコマンドでも同じです。</p>
 <ul>
 <li>権限モードが「編集を自動許可」のときのファイル編集。</li>
 <li>Claude Codeのユーザー設定（<code>~/.claude/settings.json</code>）にある許可ルール（<code>permissions.allow</code>など）で許可済みの操作や、<code>PreToolUse</code>フックが許可した操作。</li>
