@@ -146,3 +146,31 @@ private func expectSafe(_ commands: [String], sourceLocation: SourceLocation = #
         "chmod 644 file", "truncated-report", "echo shutdown"
     ])
 }
+
+@Test func `compound and grouped commands do not hide the command`() {
+    expectDangerous([
+        "if [ -d build ]; then rm -rf build; fi", #"for f in *.o; do rm "$f"; done"#, "(cd x && rm -rf y)",
+        "{ rm -rf x; }", "! rm x", "while true; do sudo ls; done", "if rm -f x; then echo ok; fi",
+        "if true; then echo; else rm x; fi", "until false; do git push; done", "(rm x)", "echo $(rm -rf x)",
+        "f() { rm -rf x; }; f"
+    ])
+    expectSafe([
+        "if [ -d build ]; then echo yes; fi", #"for f in *.swift; do echo "$f"; done"#, "(cd x && ls)", "{ echo hi; }",
+        "! grep x y", #"while read l; do echo "$l"; done"#, "echo $(date)", "git log --format='%h (%s)'"
+    ])
+}
+
+@Test func `more destructive commands are flagged`() {
+    expectDangerous([
+        "git rm -r .", "git rm -rf src", "rsync -a --delete src/ dst/", "rsync -a --delete-after a b",
+        "rsync --remove-source-files a b", "crontab -r", "security delete-keychain x", "security delete-generic-password -s x",
+        "tmutil delete /Volumes/x", "tmutil deletelocalsnapshots /", "defaults delete com.apple.dock",
+        "npx rimraf node_modules", "npx --yes rimraf dist", "rimraf dist", "git reflog expire --expire=now --all",
+        "git gc --prune=now", "git filter-branch --tree-filter x", "git update-ref -d refs/heads/x"
+    ])
+    expectSafe([
+        "git rm --cached file", "git rm -r --cached dir", "rsync -a src/ dst/", "crontab -l",
+        "security find-identity -v", "tmutil listbackups", "defaults read com.apple.dock", "npx prettier --check .",
+        "git reflog", "git gc", "git update-ref refs/heads/x HEAD"
+    ])
+}
